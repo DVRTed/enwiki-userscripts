@@ -1,12 +1,3 @@
-/*<%-- [PAGE_INFO]
-    comment = #Please do not remove this struct. It's record contains some important information of edit. This struct will be removed automatically after you push edits.#
-    pageTitle = #User:DVRTed/author-link.js#
-    pageID = #81088445#
-    revisionID = #1313138789#
-    contentModel = #javascript#
-    contentFormat = #text/javascript#
-[END_PAGE_INFO] --%>*/
-
 /* global mw, $ */
 $(() => {
   const TEXTBOX_ID = "#wpTextbox1";
