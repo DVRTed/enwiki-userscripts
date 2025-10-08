@@ -1,5 +1,5 @@
 /* global $, mw, OO */
-(() => {
+$(() => {
   class PopupDiff {
     constructor() {
       this.init();
@@ -209,7 +209,5 @@
     },
   };
 
-  $(document).ready(() => {
-    new PopupDiff();
-  });
+  new PopupDiff();
 })();
