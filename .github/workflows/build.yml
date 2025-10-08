@@ -10,6 +10,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -18,13 +20,35 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      - name: Check for deploy changes
+        id: deploy_check
+        run: |
+          # Fetch the latest prod commit
+          git fetch origin prod:prod || echo "prod branch not found, assuming first deployment."
+
+          # Compare the current state of 'dist' (on master) 
+          # with the previous state of the root of 'prod'.
+          # If the diff is quiet (no changes), EXIT_CODE will be 0.
+          git diff --exit-code prod -- dist/
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "No deployable changes detected."
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "Deployable changes found in dist/. Proceeding with deployment."
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Clean commit message
         id: clean_message
+        if: steps.deploy_check.outputs.should_deploy == 'true'
         run: |
           CLEANED_MSG=$(git log -1 --pretty=%B | sed -E 's/^\s*\[.*\]\s*//')
           echo "cleaned_message=$CLEANED_MSG" >> $GITHUB_OUTPUT
 
       - name: Deploy compiled 'dist' to 'prod' branch
+        if: steps.deploy_check.outputs.should_deploy == 'true'
         uses: s0/git-publish-subdir-action@develop
         env:
           REPO: self
