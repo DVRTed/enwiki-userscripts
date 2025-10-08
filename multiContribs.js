@@ -5,17 +5,11 @@ multiContribs.js
 - allows viewing contributions of multiple users in one page: [[Special:BlankPage/MultiContribs]];
 - adds a link to "multiContribs" tool in SPI pages;
 */
-/* global mw, $ */
 mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
     const RUN_PAGE = "Special:BlankPage/MultiContribs";
     const RUN_NS = -1;
     class MultiContribs {
         constructor() {
-            if (mw.config.get("wgNamespaceNumber") !== RUN_NS ||
-                mw.config.get("wgPageName").toLowerCase() !== RUN_PAGE.toLowerCase()) {
-                return;
-            }
-            this.content_div = document.getElementById("content");
             this.namespaces = [
                 { id: "", name: "All namespaces" },
                 { id: "0", name: "Main (articles)" },
@@ -63,6 +57,11 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
                 "mw-changed-redirect-target",
                 "mw-removed-redirect",
             ];
+            if (mw.config.get("wgNamespaceNumber") !== RUN_NS ||
+                mw.config.get("wgPageName").toLowerCase() !== RUN_PAGE.toLowerCase()) {
+                return;
+            }
+            this.content_div = document.getElementById("content");
             this.init();
         }
         init() {
@@ -150,6 +149,10 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
             document.head.appendChild(style);
         }
         render_header() {
+            if (!this.content_div) {
+                console.error("Couldn't find the content div.");
+                return;
+            }
             this.content_div.innerHTML = `
 <div class="vector-body">
   <details class="cdx-accordion" open>
@@ -239,53 +242,61 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
       `;
         }
         bind_events() {
-            document.getElementById("load-contribs").addEventListener("click", () => {
+            document
+                .getElementById("load-contribs")
+                ?.addEventListener("click", () => {
                 this.load_contributions();
             });
         }
+        get_input_by_id(id) {
+            return document.getElementById(id);
+        }
         load_from_url() {
             const params = new URLSearchParams(window.location.search);
-            document.getElementById("limit-input").value = 50;
+            this.get_input_by_id("limit-input").value = "50";
             if (params.has("limit")) {
                 const limit = params.get("limit");
-                const is_valid_limit = this.limits.includes(parseInt(limit));
-                document.getElementById("limit-input").value = is_valid_limit
+                const is_valid_limit = limit && this.limits.includes(parseInt(limit));
+                this.get_input_by_id("limit-input").value = is_valid_limit
                     ? limit
                     : "50";
             }
             if (params.has("namespace")) {
-                const namespace = params.get("namespace");
+                const ns = params.get("namespace");
                 const valid_namespaces = this.namespaces.map((ns) => ns.id);
-                document.getElementById("namespace-input").value =
-                    valid_namespaces.includes(namespace) ? namespace : "";
+                const is_valid_namespace = ns && valid_namespaces.includes(ns);
+                this.get_input_by_id("namespace-input").value = is_valid_namespace
+                    ? ns
+                    : "";
             }
             if (params.has("tag")) {
                 const tag = params.get("tag");
-                document.getElementById("tag-input").value = tag;
+                if (tag)
+                    this.get_input_by_id("tag-input").value = tag;
             }
             if (params.has("new")) {
                 const new_param = params.get("new");
-                document.getElementById("show-new-only").checked =
+                this.get_input_by_id("show-new-only").checked =
                     new_param === "1" || new_param === "true";
             }
             if (params.has("users")) {
-                document.getElementById("users-input").value = params
-                    .get("users")
-                    .split(",")
-                    .join("\n");
+                const users = params.get("users");
+                if (users)
+                    this.get_input_by_id("users-input").value = users
+                        .split(",")
+                        .join("\n");
                 this.load_contributions();
             }
         }
         update_url() {
-            const users = document
-                .getElementById("users-input")
+            const users = this.get_input_by_id("users-input")
                 .value.trim()
                 .split("\n")
                 .filter((u) => u.trim());
-            const limit = document.getElementById("limit-input").value;
-            const namespace = document.getElementById("namespace-input").value;
-            const tag = document.getElementById("tag-input").value;
-            const show_new_only = document.getElementById("show-new-only").checked;
+            const limit = this.get_input_by_id("limit-input").value;
+            const namespace = this.get_input_by_id("namespace-input").value;
+            const tag = this.get_input_by_id("tag-input").value;
+            const show_new_only = this.get_input_by_id("show-new-only").checked;
             const params = new URLSearchParams();
             if (users.length > 0) {
                 params.set("users", users.join(","));
@@ -307,20 +318,23 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
             window.history.replaceState({}, "", new_url);
         }
         async load_contributions() {
-            const raw_users = document
-                .getElementById("users-input")
+            const raw_users = this.get_input_by_id("users-input")
                 .value.trim()
                 .split("\n")
                 .map((u) => {
                 if (!u.trim())
                     return null;
                 const parse_title = mw.Title.newFromText(u, 2);
-                return parse_title ? parse_title.title : null;
+                return parse_title ? parse_title.getPrefixedText() : null;
             })
-                .filter((u) => u);
+                .filter((u) => u !== null);
             const users = [...new Set(raw_users)];
             const results_div = document.getElementById("mctb-results");
-            const load_button = document.getElementById("load-contribs");
+            const load_button = this.get_input_by_id("load-contribs");
+            if (!results_div || !load_button) {
+                console.error("Cannot find the result div and/or the `load` button");
+                return;
+            }
             if (users.length === 0) {
                 results_div.innerHTML =
                     "<p>Please enter at least one username or IP address.</p>";
@@ -334,10 +348,10 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
             const original_text = load_button.textContent;
             load_button.textContent = "Loading...";
             this.update_url();
-            const limit = parseInt(document.getElementById("limit-input").value);
-            const namespace = document.getElementById("namespace-input").value;
-            const tag = document.getElementById("tag-input").value;
-            const show_new_only = document.getElementById("show-new-only").checked;
+            const limit = parseInt(this.get_input_by_id("limit-input").value);
+            const namespace = this.get_input_by_id("namespace-input").value;
+            const tag = this.get_input_by_id("tag-input").value;
+            const show_new_only = this.get_input_by_id("show-new-only").checked;
             results_div.innerHTML = "<p>Loading contributions...</p>";
             try {
                 const all_contribs = [];
@@ -359,7 +373,7 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
                     if (show_new_only) {
                         params.ucshow = "new";
                     }
-                    const result = await api.get(params);
+                    const result = (await api.get(params));
                     if (result.query.usercontribs) {
                         result.query.usercontribs.forEach((contrib) => {
                             contrib.user = user.trim();
@@ -367,12 +381,13 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
                         });
                     }
                 }
-                all_contribs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                all_contribs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
                 this.render_results(all_contribs, results_div);
             }
             catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
                 results_div.innerHTML =
-                    "<p>Error loading contributions: " + error.message + "</p>";
+                    "<p>Error loading contributions: " + errorMessage + "</p>";
             }
             finally {
                 load_button.disabled = false;
@@ -389,7 +404,7 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
       <ul class="mw-contributions-list">`;
             contribs.forEach((contrib) => {
                 const full_date_time = this.format_timestamp(contrib.timestamp);
-                let flags = []; // might add more in future
+                const flags = [];
                 if ("new" in contrib)
                     flags.push('<abbr title="This edit created a new page">N</abbr>');
                 const flags_html = flags.length > 0
@@ -400,10 +415,7 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
                     const tag_spans = contrib.tags.map((tag) => `<span class="mw-tag" title="${tag}">${tag}</span>`);
                     tags_html = tag_spans.join("");
                 }
-                // constructing actual list
-                //
                 html += `<li data-mw-revid="${contrib.revid}">`;
-                // diff and history links
                 html += `
             <span class="mw-changeslist-links">
             <span><a href="/w/index.php?title=${contrib.title}&diff=prev&oldid=${contrib.revid}" 
@@ -413,25 +425,20 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
           </span>
         
         `;
-                // relevant user
                 html += `[<a href="/wiki/Special:Contributions/${contrib.user}" style="font-weight: bold;">${contrib.user}</a>]`;
-                // UTC date and time
                 html += `
         <bdi>
             <a href="/w/index.php?title=${contrib.title}&oldid=${contrib.revid}" 
                class="mw-changeslist-date" title="${contrib.title}">${full_date_time}</a>
         </bdi>
         `;
-                // separator and flags
                 html += `<span class="mw-changeslist-separator"></span>${flags_html}`;
-                // size diff
                 const intensity = Math.min(Math.abs(contrib.sizediff) / 1000, 1);
                 const green_intensity = Math.floor(200 - intensity * 100);
                 const red_intensity = Math.floor(200 - intensity * 100);
                 const fnt_color = contrib.sizediff > 0
                     ? `rgb(0, ${green_intensity}, 0)`
                     : `rgb(${red_intensity}, 0, 0)`;
-                // bold if diff is either higher than 500 OR lower than -500-- not in-between
                 const fnt_weight = contrib.sizediff >= 500
                     ? "bold"
                     : contrib.sizediff <= -500
@@ -441,7 +448,6 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
                 html += `
     <span dir="ltr" class="mw-plusminus-pos mw-diff-bytes" title="${contrib.size} bytes after change" style="color: ${fnt_color}; font-weight: ${fnt_weight}">${plus_sign + (contrib.sizediff || 0)}</span>
     <span class="mw-changeslist-separator"></span>`;
-                // title and edit summary
                 html += `
         <bdi>
             <a href="/wiki/${contrib.title}" 
@@ -452,7 +458,6 @@ mw.loader.using(["mediawiki.api", "mediawiki.util"]).then(() => {
                 if (tags_html) {
                     html += tags_html;
                 }
-                // if it's the current revision
                 if ("top" in contrib) {
                     html += `
             <span class="mw-changeslist-separator"></span>
