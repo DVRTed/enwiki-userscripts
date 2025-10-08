@@ -84,6 +84,7 @@ const renderContribItem = (c) => {
     const current = c.top
         ? '<span class="mw-changeslist-separator"></span><span class="mw-uctop">current</span>'
         : "";
+    const parsed_comment = c.comment?.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (_, page, label) => `<a href="/wiki/${page}">${label || page}</a>`);
     return `<li data-mw-revid="${c.revid}">
     <span class="mw-changeslist-links">
       <span><a href="/w/index.php?title=${c.title}&diff=prev&oldid=${c.revid}">diff</a></span>
@@ -95,7 +96,7 @@ const renderContribItem = (c) => {
     <span class="mw-plusminus-pos mw-diff-bytes" style="color:${color};font-weight:${weight}">${sign}${c.sizediff || 0}</span>
     <span class="mw-changeslist-separator"></span>
     <bdi><a href="/wiki/${c.title}" class="mw-contributions-title">${c.title}</a></bdi>
-    <span class="comment comment--without-parentheses">${c.comment || ""}</span>
+    <span class="comment comment--without-parentheses">${parsed_comment || ""}</span>
     ${tags}${current}
   </li>`;
 };
