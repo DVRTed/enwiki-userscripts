@@ -1,4 +1,3 @@
-/* global $, mw, OO */
 $(() => {
   class PopupDiff {
     constructor() {
