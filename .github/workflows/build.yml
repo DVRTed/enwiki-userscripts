@@ -21,7 +21,7 @@ jobs:
       - name: Clean commit message
         id: clean_message
         run: |
-          CLEANED_MSG=$(git log -1 --pretty=%B | sed 's/^\[[^\]]\+\]\s*//')
+          CLEANED_MSG=$(git log -1 --pretty=%B | sed -E 's/^\s*\[.*\]\s*//')
           echo "cleaned_message=$CLEANED_MSG" >> $GITHUB_OUTPUT
 
       - name: Deploy compiled 'dist' to 'prod' branch
