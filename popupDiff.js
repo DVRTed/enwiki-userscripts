@@ -1,6 +1,5 @@
 // {{Wikipedia:USync |repo=https://github.com/DVRTed/enwiki-userscripts |ref=refs/heads/prod |path=popupDiff.js}}
 "use strict";
-/* global $, mw, OO */
 $(() => {
     class PopupDiff {
         constructor() {
