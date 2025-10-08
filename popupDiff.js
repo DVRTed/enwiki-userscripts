@@ -3,7 +3,6 @@
 $(() => {
     class PopupDiff {
         constructor() {
-            this.windowManager = new OO.ui.WindowManager();
             this.init();
         }
         async init() {
@@ -13,6 +12,7 @@ $(() => {
                 "mediawiki.diff.styles",
                 "codex-styles",
             ]);
+            this.windowManager = new OO.ui.WindowManager();
             $("body").append(this.windowManager.$element);
             this.add_links();
         }
@@ -57,8 +57,8 @@ $(() => {
         }
         async show_popup(diff_url) {
             const dialog = new OO.ui.MessageDialog({ size: "large" });
-            this.windowManager.addWindows([dialog]);
-            this.windowManager.openWindow(dialog, {
+            this.windowManager?.addWindows([dialog]);
+            this.windowManager?.openWindow(dialog, {
                 title: "popupDiff",
                 message: $('<div style="text-align: center; padding: 20px;">Loading diff...</div>'),
                 size: "larger",
