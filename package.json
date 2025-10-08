@@ -1,0 +1,16 @@
+{
+  "name": "enwiki-userscripts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "",
+ "scripts": {
+    "build": "npx tsc && node build_scripts/add_usync_banner.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "globals": "^16.3.0",
+    "types-mediawiki": "^2.0.0",
+    "typescript": "^5.9.3"
+  }
+}

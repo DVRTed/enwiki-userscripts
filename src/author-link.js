@@ -1,5 +1,3 @@
-// {{Wikipedia:USync |repo=https://github.com/DVRTed/enwiki-userscripts |ref=refs/heads/master |path=author-link.js}}
-
 /* global mw, $ */
 $(() => {
   const TEXTBOX_ID = "#wpTextbox1";

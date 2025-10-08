@@ -1,0 +1,33 @@
+name: Build and Deploy to prod
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Clean commit message
+        id: clean_message
+        run: |
+          CLEANED_MSG=$(git log -1 --pretty=%B | sed 's/^\[[^\]]\+\]\s*//')
+          echo "cleaned_message=$CLEANED_MSG" >> $GITHUB_OUTPUT
+
+      - name: Deploy compiled 'dist' to 'prod' branch
+        uses: s0/git-publish-subdir-action@develop
+        env:
+          REPO: self
+          BRANCH: prod
+          FOLDER: dist
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MESSAGE: ${{ steps.clean_message.outputs.cleaned_message }}
+          COMMIT_NAME: github-actions-bot

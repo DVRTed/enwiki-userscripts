@@ -1,5 +1,3 @@
-// {{Wikipedia:USync |repo=https://github.com/DVRTed/enwiki-userscripts |ref=refs/heads/master |path=multiContribs.js}}
-
 /*
 multiContribs.js
 - allows viewing contributions of multiple users in one page: [[Special:BlankPage/MultiContribs]];
