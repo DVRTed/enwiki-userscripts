@@ -3,13 +3,16 @@
   "version": "1.0.0",
   "description": "",
   "main": "",
- "scripts": {
+  "scripts": {
     "build": "npx tsc && node build_scripts/add_usync_banner.js"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "globals": "^16.3.0",
+    "@biomejs/biome": "2.2.5",
+    "@eslint/js": "^9.37.0",
+    "eslint": "^9.37.0",
+    "globals": "^16.4.0",
     "types-mediawiki": "^2.0.0",
     "typescript": "^5.9.3"
   }
