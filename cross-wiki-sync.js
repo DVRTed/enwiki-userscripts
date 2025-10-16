@@ -1,6 +1,5 @@
 // {{Wikipedia:USync |repo=https://github.com/DVRTed/enwiki-userscripts |ref=refs/heads/prod |path=cross-wiki-sync.js}}
 "use strict";
-// {{Wikipedia:USync |repo=https://github.com/DVRTed/enwiki-userscripts |ref=refs/heads/prod |path=cross-wiki-sync.js}}
 /*
    Syncs current page content from another wiki.
    Only active on User:YourName/[script].js
