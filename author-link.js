@@ -172,7 +172,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         return matches
           .map((cite_text) => ({
             cite_text,
-            authors: this.parse_authors(cite_text),
+            authors: this.get_unlinked_authors(cite_text),
             processed_authors: 0,
             is_modified: false,
           }))
@@ -184,7 +184,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
        * @param {string} cite_text
        * @returns    {Array<{ name: string, index: number }>}
        */
-      parse_authors: (cite_text) => {
+      get_unlinked_authors: (cite_text) => {
         // match params: author[N], last[N], and first[N]
         const regex = /\|\s*(author|last|first)(\d*)\s*=\s*([^|}]+)/gi;
         const matches = [...cite_text.matchAll(regex)];
