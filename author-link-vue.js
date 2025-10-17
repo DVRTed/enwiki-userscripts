@@ -75,7 +75,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
           <div v-else>
             <div v-if="author.candidates && author.candidates.length">
               <div v-for="(candidate, index_3) in author.candidates" :key="index_3" class="al-candidate">
-                <a :href="get_url(candidate.title)" target="_blank">{{ candidate.title }}</a>
+                <a title="Open article in a new tab" :href="get_url(candidate.title)" target="_blank">{{ candidate.title }}</a>
                 <cdx-button action="progressive" @click="select_candidate(citation, author, candidate.title)"
                   size="small">Select</cdx-button>
               </div>
@@ -115,7 +115,6 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 
     methods: {
       init() {
-        console.log("we here!");
         this.wikitext = this.textbox.val();
         this.citation_data = this.parse_citations();
 
@@ -371,7 +370,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 
             const author_index = reg_match[1] || "1";
             const index_color = this.get_color(parseInt(author_index));
-            const style = `color:${index_color};font-weight:bold`;
+            const style = `color:${index_color};font-weight:bold;text-decoration:underline`;
 
             return (
               `| <span style="${style}">${param}</span>` +
@@ -388,14 +387,15 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   mw.util.addCSS(`
     .al-stats { color: #666; margin-bottom: 10px; }
     .al-citation { margin-bottom: 20px; padding: 10px; background: #F1F1F1; border-radius: 3px; }
-    .al-citation-header { padding: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .al-citation-preview { background: #f8f9fa; padding: 8px; margin-bottom: 15px; font-family: monospace; font-size: 14px; max-height: 100px; overflow-y: auto; }
-    .al-author { margin-bottom: 15px; padding: 10px;  background: #fff; }
-    .al-author-name { font-weight: bold; margin-bottom: 8px; }
+    .al-citation-header { padding: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .al-citation-preview { background: #f8f9fa; padding: 8px; margin-bottom: 15px; font-family: monospace; font-size: 14px; max-height: 100px; word-break: break-all; overflow-y: auto; }
+    .al-author { padding: 10px;  background: #fff; }
+    .al-author-name { font-weight: bold; }
     .al-author-num { color: #666; font-weight: normal; font-size: 11px; }
     .al-loading, .al-error, .al-no-results { text-align: center; color: #666; padding: 10px; }
     .al-candidate { margin: 5px 0; padding: 8px; background: #f9f9f9; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
-    .al-candidate a { color: #0645ad; text-decoration: none; flex-grow: 1; }
+    .al-candidate a { color: #0645ad; text-decoration: none; }
+    .al-candidate a:hover { text-decoration: underline; }
     .al-manual { margin-top: 8px; display: flex; gap: 5px; }
     .al-manual input { flex-grow: 1; padding: 6px; border: 1px solid #ddd; border-radius: 2px; }
     .al-complete { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; font-size: 15pt; }
