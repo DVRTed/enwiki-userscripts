@@ -16,7 +16,6 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   const { createApp } = require("vue");
   const { CdxButton, CdxTextInput, CdxDialog } = require("@wikimedia/codex");
 
-  // actual vue app instance
   const VUE_APP = {
     components: { CdxButton, CdxTextInput, CdxDialog },
     data() {
@@ -42,7 +41,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
     },
 
     template: `
-<cdx-dialog v-model:open="show_dialog" title="Author Links" :close-button-label="'Close'" class="al-dialog">
+<cdx-dialog v-model:open="show_dialog" title="Author Links" :close-button-label="'Close'">
   <div v-if="is_all_completed" class="al-complete">
     You're all done!
     <div style="margin-top: 15px;">
@@ -52,7 +51,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   <div v-else>
     <p class="al-stats">{{ current_stat_text }}</p>
 
-    <transition-group name="fade-slide" tag="div" class="al-citation-container">
+    <div>
       <div v-for="(citation, index) in citation_data" :key="index" v-show="!citation.skipped && !citation.completed"
         class="al-citation">
         <div class="al-citation-header">
@@ -60,9 +59,9 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
           <cdx-button @click="skip_citation(citation)" action="destructive" size="small">Skip</cdx-button>
         </div>
 
-        <div class="al-citation-preview" v-html="highlight_wikitext(citation)" @click="handle_param_click($event, citation)"></div>
+        <div class="al-citation-preview" v-html="highlight_wikitext(citation)"></div>
 
-        <div v-for="(author, index_2) in citation.authors" :key="index_2" class="al-author" v-show="author.expanded">
+        <div v-for="(author, index_2) in citation.authors" :key="index_2" class="al-author" v-show="!author.is_linked">
           <div class="al-author-name">
             {{ author.name }}
             <span class="al-author-num">(author {{ author.index || '1' }})</span>
@@ -91,7 +90,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
           </div>
         </div>
       </div>
-    </transition-group>
+    </div>
   </div>
 </cdx-dialog>
       `,
@@ -131,6 +130,16 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
           (sum, item) => sum + item.authors.length,
           0
         );
+
+        this.citation_data.forEach((citation) => {
+          citation.authors.forEach((author) => {
+            author.loading = true;
+            author.candidates = [];
+            author.manual_input = "";
+            this.search_author(author);
+          });
+        });
+
         this.show_dialog = true;
       },
 
@@ -210,7 +219,6 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
             const author_data = {
               name,
               index: num,
-              expanded: false,
               loading: false,
             };
             return name.length > 1 ? author_data : null;
@@ -242,27 +250,6 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         }
       },
 
-      handle_param_click(event, citation) {
-        const target = event.target;
-        if (!target.dataset.authorIndex) return;
-
-        const author_index = target.dataset.authorIndex;
-        const author = citation.authors.find(
-          (a) => (a.index || "1") === author_index
-        );
-
-        if (!author) return;
-
-        author.expanded = !author.expanded;
-
-        if (author.expanded && author.loading === false && !author.candidates) {
-          author.loading = true;
-          author.candidates = [];
-          author.manual_input = "";
-          this.search_author(author);
-        }
-      },
-
       select_candidate(citation, author, title) {
         const is_newly_linked = !author.is_linked;
 
@@ -273,8 +260,6 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
           this.stats.authors.completed++;
           author.is_linked = true;
         }
-
-        author.expanded = false;
 
         if (!citation.is_modified) {
           citation.is_modified = true;
@@ -385,10 +370,10 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 
             const author_index = reg_match[1] || "1";
             const index_color = this.get_color(parseInt(author_index));
-            const style = `color:${index_color};font-weight:bold;text-decoration:underline;cursor:pointer`;
+            const style = `color:${index_color};font-weight:bold`;
 
             return (
-              `| <span style="${style}" data-author-index="${author_index}">${param}</span>` +
+              `| <span style="${style}">${param}</span>` +
               `<span style="color:#7e7e7e">=</span>` +
               `<span>${value.trim()}</span>`
             );
@@ -400,33 +385,21 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   };
 
   mw.util.addCSS(`
-    .al-dialog { max-width: 1200px; width: 80vw; height: 90vh; }
     .al-stats { color: #666; margin-bottom: 10px; }
-
-    .al-citation-container { display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px; }
-
     .al-citation { margin-bottom: 20px; padding: 10px; background: #F1F1F1; border-radius: 3px; }
     .al-citation-header { padding: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .al-citation-preview { background: #f8f9fa; padding: 8px; margin-bottom: 15px; font-family: monospace; font-size: 19px; max-height: 100px; overflow-y: auto; }
-    
+    .al-citation-preview { background: #f8f9fa; padding: 8px; margin-bottom: 15px; font-family: monospace; font-size: 14px; max-height: 100px; overflow-y: auto; }
     .al-author { margin-bottom: 15px; padding: 10px;  background: #fff; }
     .al-author-name { font-weight: bold; margin-bottom: 8px; }
     .al-author-num { color: #666; font-weight: normal; font-size: 11px; }
-    
     .al-loading, .al-error, .al-no-results { text-align: center; color: #666; padding: 10px; }
-    
     .al-candidate { margin: 5px 0; padding: 8px; background: #f9f9f9; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
     .al-candidate a { color: #0645ad; text-decoration: none; flex-grow: 1; }
     .al-manual { margin-top: 8px; display: flex; gap: 5px; }
     .al-manual input { flex-grow: 1; padding: 6px; border: 1px solid #ddd; border-radius: 2px; }
-    
     .al-complete { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; font-size: 15pt; }
-    
-    .fade-slide-leave-active { transition: all 0.3s ease; }
-    .fade-slide-leave-to { opacity: 0; transform: translateY(-20px); }
   `);
 
-  let vm;
   let current_app;
   function mount_fresh_app() {
     if (current_app) {
@@ -441,7 +414,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
     const fresh_app = createApp(VUE_APP);
     current_app = fresh_app;
 
-    vm = fresh_app.mount("#" + APP_ID);
+    const vm = fresh_app.mount("#" + APP_ID);
     vm.$watch("show_dialog", (open) => {
       if (!open) {
         current_app.unmount();
