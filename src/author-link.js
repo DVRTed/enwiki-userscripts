@@ -41,7 +41,19 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
     },
 
     template: `
-<cdx-dialog v-model:open="show_dialog" title="Author Links" :close-button-label="'Close'">
+<cdx-dialog v-model:open="show_dialog">
+  <template #header>
+    <div class="al-dialog-header">
+      <div>
+        <h3>Author Links</h3>
+        <p class="al-stats">{{ current_stat_text }}</p>
+      </div>
+
+      <cdx-button @click="show_dialog = false" action="destructive" size="small" weight="primary">
+        Close
+      </cdx-button>
+    </div>
+  </template>
   <div v-if="is_all_completed" class="al-complete">
     You're all done!
     <div style="margin-top: 15px;">
@@ -49,44 +61,42 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
     </div>
   </div>
   <div v-else>
-    <p class="al-stats">{{ current_stat_text }}</p>
+    <div v-for="(citation, index) in citation_data" :key="index" v-show="!citation.skipped && !citation.completed"
+      class="al-citation">
+      <div class="al-citation-header">
+        <strong>{{ index + 1 }} of {{ citation_data.length }}</strong>
+        <cdx-button @click="skip_citation(citation)" action="destructive" size="small">Skip</cdx-button>
+      </div>
 
-    <div>
-      <div v-for="(citation, index) in citation_data" :key="index" v-show="!citation.skipped && !citation.completed"
-        class="al-citation">
-        <div class="al-citation-header">
-          <strong>{{ index + 1 }} of {{ citation_data.length }}</strong>
-          <cdx-button @click="skip_citation(citation)" action="destructive" size="small">Skip</cdx-button>
+      <div class="al-citation-preview" v-html="highlight_wikitext(citation)"></div>
+
+      <div v-for="(author, index_2) in citation.authors" :key="index_2" class="al-author" v-show="!author.is_linked">
+        <div class="al-author-name">
+          {{ author.name }}
+          <span class="al-author-num">(author {{ author.index || '1' }})</span>
         </div>
 
-        <div class="al-citation-preview" v-html="highlight_wikitext(citation)"></div>
-
-        <div v-for="(author, index_2) in citation.authors" :key="index_2" class="al-author" v-show="!author.is_linked">
-          <div class="al-author-name">
-            {{ author.name }}
-            <span class="al-author-num">(author {{ author.index || '1' }})</span>
-          </div>
-
-          <div v-if="author.loading !== false" class="al-loading">
-            Searching...
-          </div>
-          <div v-else-if="author.error" class="al-error">Search failed</div>
-          <div v-else>
-            <div v-if="author.candidates && author.candidates.length">
-              <div v-for="(candidate, index_3) in author.candidates" :key="index_3" class="al-candidate">
-                <a title="Open article in a new tab" :href="get_url(candidate.title)" target="_blank">{{ candidate.title }}</a>
-                <cdx-button action="progressive" @click="select_candidate(citation, author, candidate.title)"
-                  size="small">Select</cdx-button>
-              </div>
+        <div v-if="author.loading !== false" class="al-loading">
+          Searching...
+        </div>
+        <div v-else-if="author.error" class="al-error">Search failed</div>
+        <div v-else>
+          <div v-if="author.candidates && author.candidates.length">
+            <div v-for="(candidate, index_3) in author.candidates" :key="index_3" class="al-candidate">
+              <a title="Open article in a new tab" :href="get_url(candidate.title)" target="_blank">{{ candidate.title
+                }}</a>
+              <cdx-button action="progressive" @click="select_candidate(citation, author, candidate.title)"
+                size="small">Select</cdx-button>
             </div>
-            <div v-else class="al-no-results">No matches found</div>
+          </div>
+          <div v-else class="al-no-results">No matches found</div>
 
-            <div class="al-manual">
-              <cdx-text-input v-model="author.manual_input" placeholder="Or type the article name..."
-                style="flex-grow: 1"></cdx-text-input>
-              <cdx-button action="progressive" @click="author.manual_input && select_candidate(citation, author, author.manual_input)"
-                :disabled="!author.manual_input" size="small">Apply</cdx-button>
-            </div>
+          <div class="al-manual">
+            <cdx-text-input v-model="author.manual_input" placeholder="Or type the article name..."
+              style="flex-grow: 1"></cdx-text-input>
+            <cdx-button action="progressive"
+              @click="author.manual_input && select_candidate(citation, author, author.manual_input)"
+              :disabled="!author.manual_input" size="small">Apply</cdx-button>
           </div>
         </div>
       </div>
@@ -384,7 +394,8 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   };
 
   mw.util.addCSS(`
-    .al-stats { color: #666; margin-bottom: 10px; }
+    .al-dialog-header { display:flex; justify-content:space-between; align-items:center; width:100%; }
+    .al-stats { color: #666; font-size: 10pt; }
     .al-citation { margin-bottom: 20px; padding: 10px; background: #F1F1F1; border-radius: 3px; }
     .al-citation-header { padding: 8px; display: flex; justify-content: space-between; align-items: center; }
     .al-citation-preview { background: #f8f9fa; padding: 8px; margin-bottom: 15px; font-family: monospace; font-size: 14px; max-height: 100px; word-break: break-all; overflow-y: auto; }
