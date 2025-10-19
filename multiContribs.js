@@ -85,7 +85,13 @@ Usage:
         const current = c.top
             ? '<span class="mw-changeslist-separator"></span><span class="mw-uctop">current</span>'
             : "";
-        const parsed_comment = c.comment?.replace(/\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (_, page, label) => `<a href="/wiki/${page}">${label || page}</a>`);
+        const parsed_comment = c.comment
+            ?.replace(
+        // [[links]] to <a...>links</a>
+        /\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]/g, (_, page, label) => `<a href="/wiki/${page}">${label || page}</a>`)
+            .replace(
+        // gray out section headings
+        /(^\/\*.*\*\/)/, "<span style='color: gray'>$1</span>");
         return `<li data-mw-revid="${c.revid}">
     <span class="mw-changeslist-links">
       <span><a href="/w/index.php?title=${c.title}&diff=prev&oldid=${c.revid}">diff</a></span>
