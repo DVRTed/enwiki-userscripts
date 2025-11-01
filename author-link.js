@@ -26,6 +26,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         show_dialog: false,
         wikitext: "",
         citation_data: [],
+        observer: null,
         stats: {
           authors: {
             total: 0,
@@ -63,7 +64,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   </div>
   <div v-else>
     <div v-for="(citation, index) in citation_data" :key="index" v-show="!citation.skipped && !citation.completed"
-      class="al-citation">
+      class="al-citation" :data-citation-index="index">
       <div class="al-citation-header">
         <strong>{{ index + 1 }} of {{ citation_data.length }}</strong>
         <cdx-button @click="skip_citation(citation)" action="destructive" size="small">Skip</cdx-button>
@@ -77,10 +78,15 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
           <span class="al-author-num">(author {{ author.index || '1' }})</span>
         </div>
 
-        <div v-if="author.loading !== false" class="al-loading">
+        <div v-if="author.loading === null" class="al-loading">
+          Ready to search... <a href="#" @click.prevent="retry_search(author)" class="al-force-link">force search</a>
+        </div>
+        <div v-else-if="author.loading !== false" class="al-loading">
           Searching...
         </div>
-        <div v-else-if="author.error" class="al-error">Search failed</div>
+        <div v-else-if="author.error" class="al-error">
+          Search failed <a href="#" @click.prevent="retry_search(author)" class="al-force-link">try again</a>
+        </div>
         <div v-else>
           <div v-if="author.candidates && author.candidates.length">
             <div v-for="(candidate, index_3) in author.candidates" :key="index_3" class="al-candidate">
@@ -143,19 +149,66 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 
         this.citation_data.forEach((citation) => {
           citation.authors.forEach((author) => {
-            author.loading = true;
+            author.loading = null;
             author.candidates = [];
             author.manual_input = "";
-            this.search_author(author);
           });
         });
 
         this.show_dialog = true;
+        this.$nextTick(() => {
+          this.setup_intersection_observer();
+        });
       },
 
       get_url(title) {
         return mw.util.getUrl(title);
       },
+
+      retry_search(author) {
+        author.error = false;
+        author.loading = true;
+        this.search_author(author);
+      },
+
+      setup_intersection_observer() {
+        if (this.observer) {
+          this.observer.disconnect();
+        }
+
+        this.observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                const citation_index = parseInt(
+                  entry.target.getAttribute("data-citation-index")
+                );
+                const citation = this.citation_data[citation_index];
+
+                if (citation) {
+                  citation.authors.forEach((author) => {
+                    if (author.loading === null) {
+                      author.loading = true;
+                      this.search_author(author);
+                    }
+                  });
+                }
+              }
+            });
+          },
+          {
+            root: null,
+            rootMargin: "100px",
+            threshold: 0,
+          }
+        );
+
+        this.$nextTick(() => {
+          const citations = document.querySelectorAll(".al-citation");
+          citations.forEach((el) => this.observer.observe(el));
+        });
+      },
+
       /**
        * parse {{ citation ... }} templates
        *
@@ -229,7 +282,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
             const author_data = {
               name,
               index: num,
-              loading: false,
+              loading: null,
             };
             return name.length > 1 ? author_data : null;
           })
@@ -404,6 +457,8 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
     .al-author-name { font-weight: bold; }
     .al-author-num { color: #666; font-weight: normal; font-size: 11px; }
     .al-loading, .al-error, .al-no-results { text-align: center; color: #666; padding: 10px; }
+    .al-force-link { font-size: 11px; color: #0645ad; text-decoration: none; margin-left: 5px; }
+    .al-force-link:hover { text-decoration: underline; }
     .al-candidate { margin: 5px 0; padding: 8px; background: #f9f9f9; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
     .al-candidate a { color: #0645ad; text-decoration: none; }
     .al-candidate a:hover { text-decoration: underline; }
@@ -429,6 +484,10 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
     const vm = fresh_app.mount("#" + APP_ID);
     vm.$watch("show_dialog", (open) => {
       if (!open) {
+        if (vm.observer) {
+          vm.observer.disconnect();
+          vm.observer = null;
+        }
         current_app.unmount();
         current_app = null;
         document.getElementById(APP_ID)?.remove();
