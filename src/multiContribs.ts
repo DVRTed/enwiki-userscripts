@@ -370,25 +370,49 @@ Usage:
         .get("wgPageName")
         .startsWith("Wikipedia:Sockpuppet_investigations/")
     ) {
-      $("ul:has(span.cuEntry)").each(function () {
-        const users = $(this)
-          .find("span.cuEntry .plainlinks a")
-          .map(function () {
-            return $(this).text();
-          })
-          .get();
+      $("h4")
+        .filter(function () {
+          return $(this).text().includes("Suspected sockpuppets");
+        })
+        .each(function () {
+          const usersSet = new Set();
+          const $h4 = $(this);
 
-        $(this)
-          .find("li")
-          .last()
-          .find("a")
-          .first()
-          .before(
-            `<a href="/wiki/${CONFIG.RUN_PAGE}?users=${encodeURIComponent(
-              users.join(",")
-            )}" style="font-style:italic">multiContribs</a> <b>·</b> `
-          );
-      });
+          const $start = $h4.closest("div.mw-heading4");
+
+          let $current = $start.next();
+
+          while ($current.length && !$current.is(".mw-heading")) {
+            if ($current.is("ul")) {
+              $current.find("span.cuEntry .plainlinks a").each(function () {
+                const username = $(this).text().trim();
+                if (username) usersSet.add(username);
+              });
+
+              const $toolsLi = $current
+                .find("li.plainlinks:contains('Tools')")
+                .first();
+              if (
+                $toolsLi.length &&
+                !$toolsLi.find("a[href*='MultiContribs']").length
+              ) {
+                const $firstLink = $toolsLi.find("a").first();
+                const usersArr = Array.from(usersSet);
+                if ($firstLink.length && usersArr.length) {
+                  $firstLink.before(
+                    `<a href="/wiki/${
+                      CONFIG.RUN_PAGE
+                    }?users=${encodeURIComponent(
+                      usersArr.join(",")
+                    )}" style="font-style:italic">multiContribs</a> <b>·</b> `
+                  );
+                }
+              }
+            }
+
+            $current = $current.next();
+          }
+        });
     }
 
     mw.util.addPortletLink(
