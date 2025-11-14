@@ -14,7 +14,7 @@
   // talk namespaces are odd numbered
   const is_a_talk_page = mw.config.get("wgNamespaceNumber") % 2 === 1;
   const is_discussion_board =
-    /^Wikipedia:(.*noticeboard|Village pump|Teahouse|Reference desk)/i.test(
+    /^Wikipedia:(.*noticeboard|Village pump|Teahouse|Reference desk|Help desk)/i.test(
       title
     );
 
