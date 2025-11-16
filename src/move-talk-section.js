@@ -82,7 +82,9 @@
     }
 
     const author_match = current_section.match(SECTION_AUTHOR_REGEX);
-    const op_user = author_match ? author_match[1].trim() : null;
+    const op_user = author_match
+      ? $("<div>").html(author_match[1]).text().trim()
+      : null;
     // update dialog w/ content ie author username and disable loading state
     dialog.update_content(op_user, current_section, false);
   };
