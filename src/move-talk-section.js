@@ -10,14 +10,21 @@
 (async () => {
   const title = mw.config.get("wgPageName").replace(/_/g, " ");
 
-  // talk namespaces are odd numbered
-  const is_a_talk_page = mw.config.get("wgNamespaceNumber") % 2 === 1;
-  const is_discussion_board =
-    /^Wikipedia:(.*noticeboard|Village pump|Teahouse|Reference desk|Help desk)/i.test(
-      title
-    );
+  const is_valid_page = (page_title, namespace_number) => {
+    // talk namespaces are odd numbered
+    const is_a_talk_page = namespace_number % 2 === 1;
 
-  if (!is_a_talk_page && !is_discussion_board) {
+    // matches: noticeboards, (specific) village pump pages,  Teahouse, Help desk,
+    //  and subpages of Reference desk
+    const is_discussion_board =
+      /^Wikipedia:(Village pump \([^)/]+\)|Teahouse|Help desk|[^/\n]*\bnoticeboard\b(?:\/[^/\n]+)?|Reference desk\/.+)$/i.test(
+        page_title
+      );
+
+    return is_a_talk_page || is_discussion_board;
+  };
+
+  if (!is_valid_page(title, mw.config.get("wgNamespaceNumber"))) {
     return;
   }
 
@@ -246,6 +253,7 @@
 
       // resolve redirs
       let final_target = target_page;
+      let target_namespace = null;
       if (follow_redirect) {
         const redirect_data = await api.get({
           action: "query",
@@ -260,6 +268,29 @@
           final_target = redirect_data.query.redirects[0].to;
           progress_text += `<br>Resolved redirect to "${final_target}")`;
         }
+
+        const pages = redirect_data.query.pages;
+        const page_id = Object.keys(pages)[0];
+        target_namespace = pages[page_id].ns;
+      } else {
+        const page_data = await api.get({
+          action: "query",
+          titles: target_page,
+        });
+        const pages = page_data.query.pages;
+        const page_id = Object.keys(pages)[0];
+        target_namespace = pages[page_id].ns;
+      }
+
+      if (!is_valid_page(final_target, target_namespace)) {
+        mw.notify(
+          `The destination page "${final_target}" is not a valid talk page or discussion board.`,
+          { type: "error" }
+        );
+        dialog.actions.get({ actions: ["move"] }).forEach((action) => {
+          action.setDisabled(false);
+        });
+        return;
       }
 
       progress_text += `<br>Appending section to target page: "${final_target}"...`;
@@ -290,16 +321,37 @@
         progress_text += `<br>Notifying OP: User:${op_user}...`;
         dialog.update_content(null, null, true, progress_text);
 
-        const notification_text =
-          `Hi ${op_user}, I have moved the discussion you started` +
-          ` at {{Section link|${current_page}|${old_section_title}}} to '''{{Section link|${final_target}|${new_section_title}}}'''` +
-          ` as the latter seemed more appropriate; please check the new location for any responses. ${USER_SIGNATURE}`;
-        await api.postWithEditToken({
-          action: "edit",
-          title: `User talk:${op_user}`,
-          appendtext: `\n\n== Discussion moved ==\n${notification_text}`,
-          summary: "Notifying about moved discussion section " + SCRIPT_TAG,
-        });
+        const user_talk_page = `User talk:${op_user}`;
+        let user_talk_namespace = null;
+        try {
+          const user_talk_data = await api.get({
+            action: "query",
+            titles: user_talk_page,
+          });
+          const user_talk_pages = user_talk_data.query.pages;
+          const user_talk_page_id = Object.keys(user_talk_pages)[0];
+          user_talk_namespace = user_talk_pages[user_talk_page_id].ns;
+        } catch (e) {
+          console.error("Error fetching user talk page data:", e);
+        }
+
+        if (user_talk_namespace !== 3) {
+          mw.notify(
+            `Cannot notify: User talk:${op_user} is not a valid user talk page.`,
+            { type: "warn" }
+          );
+        } else {
+          const notification_text =
+            `Hi ${op_user}, I have moved the discussion you started` +
+            ` at {{Section link|${current_page}|${old_section_title}}} to '''{{Section link|${final_target}|${new_section_title}}}'''` +
+            ` as the latter seemed more appropriate; please check the new location for any responses. ${USER_SIGNATURE}`;
+          await api.postWithEditToken({
+            action: "edit",
+            title: user_talk_page,
+            appendtext: `\n\n== Discussion moved ==\n${notification_text}`,
+            summary: "Notifying about moved discussion section " + SCRIPT_TAG,
+          });
+        }
       }
       progress_text += `<br>Moved! Reloading page...`;
 
