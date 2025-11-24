@@ -246,8 +246,6 @@
       });
       let progress_text = `Moving section to "${target_page}"...`;
 
-      dialog.update_content(null, null, true, progress_text);
-
       const api = new mw.Api();
       const current_page = mw.config.get("wgPageName");
 
