@@ -255,6 +255,7 @@ $(() => {
                 const info = await api.get({
                   action: "query",
                   list: "usercontribs",
+                  ucnamespace: 0,
                   ucuser: username.value,
                   ucend: "2022-12-01T00:00:00Z",
                   uclimit: 1,
@@ -281,6 +282,7 @@ $(() => {
                   const params = {
                     action: "query",
                     list: "usercontribs",
+                    ucnamespace: 0,
                     ucuser: username.value,
                     ucend: "2022-12-01T00:00:00Z",
                     uclimit: "max",
