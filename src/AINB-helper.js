@@ -324,9 +324,7 @@ $(() => {
                   });
                 });
 
-                articleGroups.value = Object.values(groups).sort((a, b) =>
-                  a.title.localeCompare(b.title)
-                );
+                articleGroups.value = Object.values(groups);
 
                 articleGroups.value.forEach((g) => updateGroupSelection(g));
 
