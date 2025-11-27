@@ -401,7 +401,7 @@ $(() => {
                       `[[Special:Diff/${e.revid}|(${formatBytes(e.sizediff)})]]`
                   )
                   .join(" ");
-                wikitext += `|{{AIC article row|${group.title}|requested|${group.edits.length} edits: ${links}}}\n`;
+                wikitext += `|{{AIC article row|article=${group.title}|status=requested|notes=${group.edits.length} edits: ${links}}}\n`;
               });
 
               wikitext += `}}\n`;
