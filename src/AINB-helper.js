@@ -137,7 +137,7 @@ $(() => {
             <template v-if="step === 2">
                 <div class="ainb-subpage-info">
                     Target:
-                    <strong>Wikipedia:WikiProject AI Cleanup/Noticeboard/{{ currentDate }} {{ normalized_username
+                    <strong>Wikipedia:WikiProject AI Cleanup/Noticeboard/{{ currentDate }} {{ normalizedUsername
                         }}</strong>
                 </div>
                 <div>
@@ -163,7 +163,7 @@ $(() => {
             const isOpen = ref(true);
             const step = ref(1);
             const username = ref("");
-            const normalized_username = ref("");
+            const normalizedUsername = ref("");
             const loading = ref(false);
             const progress = ref(0);
             const error = ref("");
@@ -277,7 +277,7 @@ $(() => {
                     "No edits found in the timeframe. Note: the username is case-sensitive.";
                   return;
                 }
-                normalized_username.value = info.query.usercontribs[0].user;
+                normalizedUsername.value = info.query.usercontribs[0].user;
                 do {
                   const params = {
                     action: "query",
@@ -412,7 +412,7 @@ $(() => {
               step.value = 3;
 
               try {
-                const pageTitle = `Wikipedia:WikiProject AI Cleanup/Noticeboard/${currentDate.value} ${normalized_username.value}`;
+                const pageTitle = `Wikipedia:WikiProject AI Cleanup/Noticeboard/${currentDate.value} ${normalizedUsername.value}`;
 
                 await api.postWithEditToken({
                   action: "edit",
@@ -444,7 +444,7 @@ $(() => {
               isOpen,
               step,
               username,
-              normalized_username,
+              normalizedUsername,
               loading,
               progress,
               error,
