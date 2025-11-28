@@ -64,16 +64,20 @@ $(() => {
 
         <div class="ainb-list">
             <div v-for="group in articleGroups" :key="group.title" class="ainb-article-card">
+              <div class="ainb-article-header">
+                    <cdx-checkbox
+                        :model-value="group.allSelected"
+                        :indeterminate="group.someSelected && !group.allSelected"
+                        @update:model-value="toggleArticle(group)"
+                    >
+                        <strong>{{ group.title }}</strong>
+                        <span class="ainb-count">({{ group.selectedCount }}/{{ group.edits.length }} selected)</span>
+                    </cdx-checkbox>
+                </div>
 
                 <cdx-accordion>
                     <template #title>
-                        <cdx-checkbox :model-value="group.allSelected"
-                            :indeterminate="group.someSelected && !group.allSelected"
-                            @update:model-value="toggleArticle(group)">
-                            <strong>{{ group.title }}</strong>
-                            <span class="ainb-count">({{ group.selectedCount }}/{{ group.edits.length }}
-                                selected)</span>
-                        </cdx-checkbox>
+                        <span>Details</span>
                     </template>
                     <div class="ainb-diffs" v-show="group.expanded">
                         <div v-for="edit in group.edits" :key="edit.revid" class="ainb-diff-item">
@@ -392,7 +396,7 @@ $(() => {
                 }))
                 .filter((g) => g.edits.length > 0);
 
-              let wikitext = `Relevant report and discussion may be viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list\n`;
+              let wikitext = `Relevant report and discussion may be viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list|\n`;
 
               selectedGroups.forEach((group) => {
                 const links = group.edits
@@ -401,7 +405,7 @@ $(() => {
                       `[[Special:Diff/${e.revid}|(${formatBytes(e.sizediff)})]]`
                   )
                   .join(" ");
-                wikitext += `|{{AIC article row|article=${group.title}|status=requested|notes=${group.edits.length} edits: ${links}}}\n`;
+                wikitext += `{{AIC article row|article=${group.title}|status=requested|notes=${group.edits.length} edits: ${links}}}\n`;
               });
 
               wikitext += `}}\n`;
