@@ -392,7 +392,7 @@ $(() => {
                 }))
                 .filter((g) => g.edits.length > 0);
 
-              let wikitext = `Relevant report and discussion are viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list\n`;
+              let wikitext = `Relevant report and discussion may be viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list\n`;
 
               selectedGroups.forEach((group) => {
                 const links = group.edits
