@@ -405,7 +405,9 @@ $(() => {
                       `[[Special:Diff/${e.revid}|(${formatBytes(e.sizediff)})]]`
                   )
                   .join(" ");
-                wikitext += `{{AIC article row|article=${group.title}|status=requested|notes=${group.edits.length} edits: ${links}}}\n`;
+                const edit_count = group.edits.length;
+                const edit_str = edit_count > 1 ? "edits" : "edit";
+                wikitext += `{{AIC article row|article=${group.title}|status=requested|notes=${edit_count} ${edit_str}: ${links}}}\n`;
               });
 
               wikitext += `}}\n`;
