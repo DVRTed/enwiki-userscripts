@@ -6,6 +6,9 @@ $(() => {
   const APP_ID = "ainb-helper";
   const APP_AD = "(using [[User:DVRTed/AINB-helper.js|AINB-helper]])";
 
+  const DEBUG_MODE = false;
+  const DEBUG_PAGE = "User:DVRTed/sandbox2";
+
   let currentApp = null;
 
   function init() {
@@ -141,8 +144,7 @@ $(() => {
             <template v-if="step === 2">
                 <div class="ainb-subpage-info">
                     Target:
-                    <strong>Wikipedia:WikiProject AI Cleanup/Noticeboard/{{ currentDate }} {{ normalizedUsername
-                        }}</strong>
+                    <strong>{{ targetPageTitle }}</strong>
                 </div>
                 <div>
                     <cdx-button @click="step = 1">Back</cdx-button>
@@ -156,7 +158,7 @@ $(() => {
                 <div></div><!-- spacer ~ this goes to left -->
                 <div>
                     <cdx-button @click="handleDialogClose">Close</cdx-button>
-                    <cdx-button @click="reset" action="progressive">Start Over</cdx-button>
+                    <cdx-button @click="reset" action="progressive" :disabled="creating">Start Over</cdx-button>
                 </div>
             </template>
         </div>
@@ -337,6 +339,11 @@ $(() => {
                     "No contributions found in the specified period.";
                 } else {
                   step.value = 2;
+                  const pageTitle = DEBUG_MODE
+                    ? DEBUG_PAGE
+                    : `Wikipedia:WikiProject AI Cleanup/Noticeboard/${currentDate.value} ${normalizedUsername.value}`;
+                  targetPageTitle.value = pageTitle;
+                  targetPageUrl.value = mw.util.getUrl(pageTitle);
                   nextTick(() => {
                     // enable popups, etc on the diff link
                     const content = document.querySelector(
@@ -416,17 +423,12 @@ $(() => {
               step.value = 3;
 
               try {
-                const pageTitle = `Wikipedia:WikiProject AI Cleanup/Noticeboard/${currentDate.value} ${normalizedUsername.value}`;
-
                 await api.postWithEditToken({
                   action: "edit",
-                  title: pageTitle,
+                  title: targetPageTitle.value,
                   text: wikitext,
                   summary: `Creating tracking subpage ${APP_AD}`,
                 });
-
-                targetPageTitle.value = pageTitle;
-                targetPageUrl.value = mw.util.getUrl(pageTitle);
               } catch (e) {
                 createError.value = "Error creating page: " + e.message;
                 console.error(e);
