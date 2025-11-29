@@ -7,6 +7,9 @@ $(() => {
   const APP_ID = "ainb-helper";
   const APP_AD = "(using [[User:DVRTed/AINB-helper.js|AINB-helper]])";
 
+  const DEBUG_MODE = false;
+  const DEBUG_PAGE = "User:DVRTed/sandbox2";
+
   let currentApp = null;
 
   function init() {
@@ -65,16 +68,20 @@ $(() => {
 
         <div class="ainb-list">
             <div v-for="group in articleGroups" :key="group.title" class="ainb-article-card">
+              <div class="ainb-article-header">
+                    <cdx-checkbox
+                        :model-value="group.allSelected"
+                        :indeterminate="group.someSelected && !group.allSelected"
+                        @update:model-value="toggleArticle(group)"
+                    >
+                        <strong>{{ group.title }}</strong>
+                        <span class="ainb-count">({{ group.selectedCount }}/{{ group.edits.length }} selected)</span>
+                    </cdx-checkbox>
+                </div>
 
                 <cdx-accordion>
                     <template #title>
-                        <cdx-checkbox :model-value="group.allSelected"
-                            :indeterminate="group.someSelected && !group.allSelected"
-                            @update:model-value="toggleArticle(group)">
-                            <strong>{{ group.title }}</strong>
-                            <span class="ainb-count">({{ group.selectedCount }}/{{ group.edits.length }}
-                                selected)</span>
-                        </cdx-checkbox>
+                        <span>Details</span>
                     </template>
                     <div class="ainb-diffs" v-show="group.expanded">
                         <div v-for="edit in group.edits" :key="edit.revid" class="ainb-diff-item">
@@ -138,8 +145,7 @@ $(() => {
             <template v-if="step === 2">
                 <div class="ainb-subpage-info">
                     Target:
-                    <strong>Wikipedia:WikiProject AI Cleanup/Noticeboard/{{ currentDate }} {{ normalizedUsername
-                        }}</strong>
+                    <strong>{{ targetPageTitle }}</strong>
                 </div>
                 <div>
                     <cdx-button @click="step = 1">Back</cdx-button>
@@ -153,7 +159,7 @@ $(() => {
                 <div></div><!-- spacer ~ this goes to left -->
                 <div>
                     <cdx-button @click="handleDialogClose">Close</cdx-button>
-                    <cdx-button @click="reset" action="progressive">Start Over</cdx-button>
+                    <cdx-button @click="reset" action="progressive" :disabled="creating">Start Over</cdx-button>
                 </div>
             </template>
         </div>
@@ -334,6 +340,11 @@ $(() => {
                     "No contributions found in the specified period.";
                 } else {
                   step.value = 2;
+                  const pageTitle = DEBUG_MODE
+                    ? DEBUG_PAGE
+                    : `Wikipedia:WikiProject AI Cleanup/Noticeboard/${currentDate.value} ${normalizedUsername.value}`;
+                  targetPageTitle.value = pageTitle;
+                  targetPageUrl.value = mw.util.getUrl(pageTitle);
                   nextTick(() => {
                     // enable popups, etc on the diff link
                     const content = document.querySelector(
@@ -393,7 +404,7 @@ $(() => {
                 }))
                 .filter((g) => g.edits.length > 0);
 
-              let wikitext = `Relevant report and discussion are viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list\n`;
+              let wikitext = `Relevant report and discussion may be viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list|\n`;
 
               selectedGroups.forEach((group) => {
                 const links = group.edits
@@ -402,7 +413,9 @@ $(() => {
                       `[[Special:Diff/${e.revid}|(${formatBytes(e.sizediff)})]]`
                   )
                   .join(" ");
-                wikitext += `|{{AIC article row|article=${group.title}|status=requested|notes=${group.edits.length} edits: ${links}}}\n`;
+                const edit_count = group.edits.length;
+                const edit_str = edit_count > 1 ? "edits" : "edit";
+                wikitext += `{{AIC article row|article=${group.title}|status=requested|notes=${edit_count} ${edit_str}: ${links}}}\n`;
               });
 
               wikitext += `}}\n`;
@@ -411,17 +424,12 @@ $(() => {
               step.value = 3;
 
               try {
-                const pageTitle = `Wikipedia:WikiProject AI Cleanup/Noticeboard/${currentDate.value} ${normalizedUsername.value}`;
-
                 await api.postWithEditToken({
                   action: "edit",
-                  title: pageTitle,
+                  title: targetPageTitle.value,
                   text: wikitext,
                   summary: `Creating tracking subpage ${APP_AD}`,
                 });
-
-                targetPageTitle.value = pageTitle;
-                targetPageUrl.value = mw.util.getUrl(pageTitle);
               } catch (e) {
                 createError.value = "Error creating page: " + e.message;
                 console.error(e);
@@ -519,7 +527,7 @@ $(() => {
 
   // for nicely formatted CSS, see [[User:DVRTed/AINB-helper.css]]
   mw.util.addCSS(
-    " .ainb-controls .cdx-checkbox {margin: 0;}.ainb-helper.cdx-dialog__window, .ainb-helper .cdx-dialog__window, .ainb-helper {width: 900px !important;max-width: 90vw !important;}.ainb-dialog-footer .cdx-button {margin: 0 4px;}.ainb-dialog-footer {display: flex;align-items: center;justify-content: space-between;}.ainb-step {padding: 1em 0;max-height: 65vh;overflow-y: auto;}.ainb-subpage-info {padding: 0.75em;background: #f8f9fa;border-left: 3px solid #36c;}.ainb-error {color: #d33;margin-top: 0.5em;padding: 0.5em;background: #fee;border-radius: 2px;}.ainb-loading {text-align: center;}.ainb-controls {display: flex;justify-content: space-between;align-items: center;padding: 0.75em;background: #fbfbfb;margin-bottom: 1em;}.ainb-article-card {border: 2px solid #f7f7f7;border-radius: 4px;margin: 20px 0;overflow: hidden;}.ainb-article-header {padding: 0.75em 1em;background: #fbfbfb;border-bottom: 2px solid #d3d3d3;}.ainb-article-title-row {display: flex;align-items: center;justify-content: space-between;}.ainb-count {color: #858585;font-size: 0.9em;margin: 0 4px;font-weight: normal;}.ainb-diffs {padding: 0.5em;}.ainb-diff-item {border-bottom: 1px solid #d3d3d3;padding: 0.9em 0;}.ainb-diff-header {display: flex;justify-content: space-between;margin-bottom: 0.5em;}.ainb-diff-size {font-weight: bold;margin: 0 1em;}.ainb-diff-link {font-weight: bold;font-size: 1em;}.ainb-pos {color: #027202;}.ainb-neg {color: #830101;}.ainb-neu {color: #4b4f53;}.ainb-time {color: #747980;font-size: 0.85em;}.ainb-comment {color: #202122;font-style: italic;margin-left: 1em;overflow: hidden;text-overflow: ellipsis;}.ainb-custom-accordion {margin-left: 2em;margin-top: 0.5em;border: 1px solid #c8ccd1;border-radius: 2px;}.ainb-accordion-header {display: flex;align-items: center;width: 100%;padding: 8px 12px;background: #f9fbfc;border: none;border-bottom: 1px solid #cbd1d8;cursor: pointer;text-align: left;font-weight: bold;font-size: 0.9em;}.ainb-accordion-header:hover {background: #e8eaee;}.ainb-accordion-icon {margin-right: 0.5em;font-size: 1.2em;}.ainb-accordion-content {padding: 0;}.ainb-diff-loading {padding: 1em;color: #72777d;font-style: italic;text-align: center;}.ainb-diff-content {padding: 0.5em;background: #fff;overflow-x: auto;max-height: 300px;overflow-y: auto;}.ainb-diff-content .diff {width: 100%;border-collapse: collapse;font-size: 0.85em;font-family: monospace;}.ainb-diff-content .diff td {padding: 2px 6px;vertical-align: top;}.ainb-diff-content .diff-addedline {background: #7ef09c;}.ainb-diff-content .diff-deletedline {background: #faa1ac;}.ainb-diff-content .diff-context {background: #f8f9fa;color: #72777d;}.ainb-preview {background: #f8f9fa;padding: 1em;border: 1px solid #eaecf0;border-radius: 2px;max-height: 300px;overflow: auto;font-size: 0.85em;white-space: pre-wrap;}"
+    " .ainb-controls .cdx-checkbox {margin: 0;}.ainb-helper.cdx-dialog__window, .ainb-helper .cdx-dialog__window, .ainb-helper {width: 900px !important;max-width: 90vw !important;}.ainb-dialog-footer .cdx-button {margin: 0 4px;}.ainb-dialog-footer {display: flex;align-items: center;justify-content: space-between;}.ainb-step {padding: 1em 0;max-height: 65vh;overflow-y: auto;}.ainb-subpage-info {padding: 0.75em;background: #f8f9fa;border-left: 3px solid #36c;}.ainb-error {color: #d33;margin-top: 0.5em;padding: 0.5em;background: #fee;border-radius: 2px;}.ainb-loading {text-align: center;}.ainb-controls {display: flex;justify-content: space-between;align-items: center;padding: 0.75em;background: #fbfbfb;margin-bottom: 1em;}.ainb-article-card {border: 2px solid #f7f7f7;border-radius: 4px;margin: 20px 0;overflow: hidden;}.ainb-article-header {padding: 0.75em 1em;background: #fbfbfb;border-bottom: 2px solid #d3d3d3;}.ainb-article-title-row {display: flex;align-items: center;justify-content: space-between;}.ainb-count {color: #858585;font-size: 0.9em;margin: 0 4px;font-weight: normal;}.ainb-diffs {padding: 0.5em;}.ainb-diff-item {border-bottom: 1px solid #d3d3d3;padding: 0.9em 0;}.ainb-diff-header {display: flex;justify-content: space-between;margin-bottom: 0.5em;}.ainb-diff-size {font-weight: bold;margin: 0 1em;}.ainb-diff-link {font-weight: bold;font-size: 1em;}.ainb-pos {color: #027202;}.ainb-neg {color: #830101;}.ainb-neu {color: #4b4f53;}.ainb-time {color: #747980;font-size: 0.85em;}.ainb-comment {color: #202122;font-style: italic;margin-left: 1em;overflow: hidden;text-overflow: ellipsis;}.ainb-custom-accordion {margin-left: 2em;margin-top: 0.5em;border: 1px solid #c8ccd1;border-radius: 2px;}.ainb-accordion-header {display: flex;align-items: center;width: 100%;padding: 8px 12px;background: #f9fbfc;border: none;border-bottom: 1px solid #cbd1d8;cursor: pointer;text-align: left;font-weight: bold;font-size: 0.9em;}.ainb-accordion-header:hover {background: #e8eaee;}.ainb-accordion-icon {margin-right: 0.5em;font-size: 1.2em;}.ainb-accordion-content {padding: 0;}.ainb-diff-loading {padding: 1em;color: #72777d;font-style: italic;text-align: center;}.ainb-diff-content {padding: 0.5em;background: #fff;overflow-x: auto;max-height: 300px;overflow-y: auto;}.ainb-diff-content .diff {width: 100%;border-collapse: collapse;font-size: 0.85em;font-family: monospace;}.ainb-diff-content .diff td {padding: 2px 6px;vertical-align: top;}.ainb-diff-content .diff-addedline {background: #7ef09c;}.ainb-diff-content .diff-deletedline {background: #faa1ac;}.ainb-diff-content .diff-context {background: #f8f9fa;color: #72777d;}.ainb-preview {background: #f8f9fa;padding: 1em;border: 1px solid #eaecf0;border-radius: 2px;max-height: 300px;overflow: auto;font-size: 0.85em;white-space: pre-wrap;}.skin-theme-clientpref-night .ainb-controls, .skin-theme-clientpref-night .ainb-article-header, .skin-theme-clientpref-night .ainb-accordion-header, .skin-theme-clientpref-night .ainb-diff-content, .skin-theme-clientpref-night .ainb-subpage-info {background: #2a2a2a;color: #fff;}.skin-theme-clientpref-night .diff-context {background: #363636;color: #fff;}.skin-theme-clientpref-night .diff-deletedline {background: #a51729;color: #fff;}.skin-theme-clientpref-night .diff-addedline {background: #087c26;color: #fff;}.skin-theme-clientpref-night .ainb-accordion-header:hover {background: #606060;}.skin-theme-clientpref-night .ainb-comment {color: #ffffff;}"
   );
 });
 
