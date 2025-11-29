@@ -213,3 +213,35 @@
   font-size: 0.85em;
   white-space: pre-wrap;
 }
+
+.skin-theme-clientpref-night .ainb-controls,
+.skin-theme-clientpref-night .ainb-article-header,
+.skin-theme-clientpref-night .ainb-accordion-header,
+.skin-theme-clientpref-night .ainb-diff-content,
+.skin-theme-clientpref-night .ainb-subpage-info {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+.skin-theme-clientpref-night .diff-context {
+  background: #363636;
+  color: #fff;
+}
+
+.skin-theme-clientpref-night .diff-deletedline {
+  background: #a51729;
+  color: #fff;
+}
+
+.skin-theme-clientpref-night .diff-addedline {
+  background: #087c26;
+  color: #fff;
+}
+
+.skin-theme-clientpref-night .ainb-accordion-header:hover {
+  background: #606060;
+}
+
+.skin-theme-clientpref-night .ainb-comment {
+  color: #ffffff;
+}
