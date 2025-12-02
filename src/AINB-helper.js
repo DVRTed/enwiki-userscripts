@@ -4,7 +4,7 @@
 // <nowiki>
 $(async () => {
   const APP_ID = "ainb-helper";
-  const APP_AD = "(using [[User:DVRTed/AINB-helper.js|AINB-helper]])";
+  const APP_AD = "(using [[User:DVRTed/AINB-helper|AINB-helper]])";
 
   const DEBUG_MODE = false;
   const DEBUG_PAGE = "User:DVRTed/sandbox2";
