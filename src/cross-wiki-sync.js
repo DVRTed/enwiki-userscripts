@@ -11,9 +11,10 @@
   const page = mw.config.get("wgPageName");
   const user = mw.config.get("wgUserName");
 
-  // matches `User:[CURRENT_USER]/[ANYTHING].js`
+  // matches `User:[CURRENT_USER]/[ANYTHING].(js|css)`
   const is_own_script =
-    page.startsWith(`User:${user}/`) && page.endsWith(".js");
+    page.startsWith(`User:${user}/`) &&
+    (page.endsWith(".js") || page.endsWith(".css"));
   if (!is_own_script) return;
   const source_name = new URL(SOURCE_WIKI).hostname;
 
