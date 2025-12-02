@@ -1,18 +1,23 @@
 /* overrides for annoying codex defaults */
-.ainb-controls .cdx-checkbox {
-  margin: 0;
+.ainb-helper .cdx-checkbox,
+.ainb-helper .cdx-label {
+  margin: 0 !important;
 }
 
 .ainb-helper.cdx-dialog__window,
 .ainb-helper .cdx-dialog__window,
-.ainb-helper {
-  width: 900px !important;
+.ainb-helper,
+.ainb-diff-dialog.cdx-dialog__window,
+.ainb-diff-dialog .cdx-dialog__window,
+.ainb-diff-dialog {
+  width: 800px !important;
   max-width: 90vw !important;
 }
 
 .ainb-dialog-footer .cdx-button {
   margin: 0 4px;
 }
+
 /* end overrides */
 
 .ainb-dialog-footer {
@@ -31,6 +36,15 @@
   padding: 0.75em;
   background: #f8f9fa;
   border-left: 3px solid #36c;
+  overflow: hidden;
+}
+
+.ainb-subpage-info strong {
+  font-family: monospace;
+}
+
+.ainb-footer-buttons {
+  min-width: 200px;
 }
 
 .ainb-error {
@@ -66,6 +80,7 @@
   background: #fbfbfb;
   border-bottom: 2px solid #d3d3d3;
 }
+
 .ainb-article-title-row {
   display: flex;
   align-items: center;
@@ -80,28 +95,48 @@
 }
 
 .ainb-diffs {
-  padding: 0.5em;
+  padding: 1em;
 }
 
 .ainb-diff-item {
-  border-bottom: 1px solid #d3d3d3;
-  padding: 0.9em 0;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #fff;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.ainb-diff-header {
+.ainb-diff-item-selected {
+  border-color: #a4c4f0;
+  box-shadow: 0 2px 4px rgba(51, 102, 204, 0.15);
+  background-color: #f8fbff;
+}
+
+.ainb-diff-metadata {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5em;
+  align-items: center;
+}
+
+.ainb-diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.9em;
 }
 
 .ainb-diff-size {
-  font-weight: bold;
-  margin: 0 1em;
-}
-
-.ainb-diff-link {
-  font-weight: bold;
-  font-size: 1em;
+  font-weight: 600;
+  margin: 0 8px;
+  font-family: monospace;
+  font-size: 1.1em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f8f9fa;
 }
 
 .ainb-pos {
@@ -117,50 +152,54 @@
 }
 
 .ainb-time {
-  color: #747980;
+  color: #72777d;
   font-size: 0.85em;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .ainb-comment {
   color: #202122;
-  font-style: italic;
-  margin-left: 1em;
+  font-weight: 500;
+  margin-left: 8px;
+  margin-right: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 60%;
+  vertical-align: middle;
 }
 
-.ainb-custom-accordion {
-  margin-left: 2em;
-  margin-top: 0.5em;
-  border: 1px solid #c8ccd1;
-  border-radius: 2px;
-}
-
-.ainb-accordion-header {
+.ainb-diff-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
+  justify-content: center;
   align-items: center;
-  width: 100%;
-  padding: 8px 12px;
-  background: #f9fbfc;
-  border: none;
-  border-bottom: 1px solid #cbd1d8;
-  cursor: pointer;
-  text-align: left;
-  font-weight: bold;
-  font-size: 0.9em;
+  z-index: 1000;
 }
 
-.ainb-accordion-header:hover {
-  background: #e8eaee;
+.ainb-diff-popup-content {
+  background: #fff;
+  width: 85vw;
+  max-width: 1000px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
 }
 
-.ainb-accordion-icon {
-  margin-right: 0.5em;
-  font-size: 1.2em;
-}
-
-.ainb-accordion-content {
-  padding: 0;
+.skin-theme-clientpref-night .ainb-diff-popup-content,
+.skin-theme-clientpref-night {
+  background: #2a2a2a;
+  color: #fff;
 }
 
 .ainb-diff-loading {
@@ -174,20 +213,35 @@
   padding: 0.5em;
   background: #fff;
   overflow-x: auto;
-  max-height: 300px;
-  overflow-y: auto;
+  display: flex;
+  justify-content: center;
 }
 
 .ainb-diff-content .diff {
-  width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   font-size: 0.85em;
   font-family: monospace;
+  table-layout: fixed;
 }
 
 .ainb-diff-content .diff td {
   padding: 2px 6px;
   vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.ainb-diff-content .diff-marker {
+  width: 2%;
+  padding: 0 2px;
+  text-align: right;
+}
+
+.ainb-diff-content .diff-context,
+.ainb-diff-content .diff-addedline,
+.ainb-diff-content .diff-deletedline {
+  width: 48%;
 }
 
 .ainb-diff-content .diff-addedline {
@@ -218,22 +272,38 @@
 .skin-theme-clientpref-night .ainb-article-header,
 .skin-theme-clientpref-night .ainb-accordion-header,
 .skin-theme-clientpref-night .ainb-diff-content,
-.skin-theme-clientpref-night .ainb-subpage-info {
+.skin-theme-clientpref-night .ainb-subpage-info,
+.skin-theme-clientpref-night .ainb-diff-item {
   background: #2a2a2a;
   color: #fff;
+  border-color: #4a4a4a;
 }
 
-.skin-theme-clientpref-night .diff-context {
+.skin-theme-clientpref-night .ainb-diff-size {
   background: #363636;
   color: #fff;
 }
 
-.skin-theme-clientpref-night .diff-deletedline {
+.skin-theme-clientpref-night .ainb-diff-actions {
+  border-bottom-color: #4a4a4a;
+}
+
+.skin-theme-clientpref-night .ainb-diff-item-selected {
+  border-color: #36c;
+  background-color: #1a2635;
+}
+
+.skin-theme-clientpref-night .ainb-diff-content .diff-context {
+  background: #363636;
+  color: #fff;
+}
+
+.skin-theme-clientpref-night .ainb-diff-content .diff-deletedline {
   background: #a51729;
   color: #fff;
 }
 
-.skin-theme-clientpref-night .diff-addedline {
+.skin-theme-clientpref-night .ainb-diff-content .diff-addedline {
   background: #087c26;
   color: #fff;
 }
@@ -244,4 +314,5 @@
 
 .skin-theme-clientpref-night .ainb-comment {
   color: #ffffff;
+  font-style: italic;
 }
