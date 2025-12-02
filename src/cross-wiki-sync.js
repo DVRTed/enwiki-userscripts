@@ -18,7 +18,7 @@
   const source_name = new URL(SOURCE_WIKI).hostname;
 
   mw.loader.using(
-    ["mediawiki.util", "mediawiki.api", "oojs-ui-core"],
+    ["mediawiki.util", "mediawiki.api", "oojs-ui-core", "oojs-ui-windows"],
     function () {
       const link = mw.util.addPortletLink(
         "p-cactions",
@@ -29,14 +29,28 @@
 
       $(link).on("click", function (e) {
         e.preventDefault();
-        fetch_page();
+        show_input_dialog();
       });
 
-      async function fetch_page() {
-        mw.notify(`Fetching ${page} from ${source_name}...`, { type: "info" });
+      function show_input_dialog() {
+        OO.ui
+          .prompt("Enter page name to sync from:", {
+            textInput: { value: page },
+          })
+          .then(function (page_name) {
+            if (page_name) {
+              fetch_page(page_name);
+            }
+          });
+      }
+
+      async function fetch_page(page_name) {
+        mw.notify(`Fetching ${page_name} from ${source_name}...`, {
+          type: "info",
+        });
 
         const api_url = `${SOURCE_WIKI}/w/api.php?action=query&titles=${encodeURIComponent(
-          page
+          page_name
         )}&prop=revisions&rvprop=content&format=json&origin=*&rvslots=*`;
 
         const response = await fetch(api_url).then((r) => r.json());
@@ -51,10 +65,10 @@
         }
 
         const content = page_data.revisions[0].slots.main["*"];
-        await edit_page(content);
+        await edit_page(content, page_name);
       }
 
-      async function edit_page(content) {
+      async function edit_page(content, page_name) {
         const api = new mw.Api();
 
         const confirmed = await OO.ui.confirm($("<pre>").text(content), {
@@ -67,7 +81,7 @@
           action: "edit",
           title: page,
           text: content,
-          summary: `Synced from [[:testwiki:${page}]] using [[User:DVRTed/cross-wiki-sync.js|cross-wiki-sync]]`,
+          summary: `Synced from [[:testwiki:${page_name}]] using [[User:DVRTed/cross-wiki-sync.js|cross-wiki-sync]]`,
         });
 
         if (response.edit && response.edit.result === "Success") {
