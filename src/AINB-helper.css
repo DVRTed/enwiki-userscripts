@@ -316,3 +316,24 @@
   color: #ffffff;
   font-style: italic;
 }
+
+.ainb-edit-table.cdx-dialog__window,
+.ainb-edit-table .cdx-dialog__window,
+.ainb-edit-table {
+  width: 700px !important;
+  max-width: 90vw !important;
+}
+
+.ainb-edit-btn {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.ainb-edit-btn:hover {
+  background: #e8e9ea;
+  border-color: #999;
+}
+
+.ainb-form-field {
+  margin: 5px 0;
+}

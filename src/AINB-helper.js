@@ -6,7 +6,7 @@ $(async () => {
   const APP_ID = "ainb-helper";
   const APP_AD = "(using [[User:DVRTed/AINB-helper|AINB-helper]])";
 
-  const DEBUG_MODE = false;
+  const DEBUG_MODE = true;
   const DEBUG_PAGE = "User:DVRTed/sandbox2";
 
   const require = mw.loader.require;
@@ -29,6 +29,7 @@ $(async () => {
     if (current_app) {
       current_app.unmount();
     }
+    current_app = null;
     document.getElementById(APP_ID)?.remove();
 
     const mount_point = document.createElement("div");
@@ -48,7 +49,6 @@ $(async () => {
       CdxDialog,
       CdxAccordion,
       CdxCheckbox,
-      CdxIcon,
       CdxProgressBar,
     } = require("@wikimedia/codex");
 
@@ -60,7 +60,6 @@ $(async () => {
         CdxDialog,
         CdxAccordion,
         CdxCheckbox,
-        CdxIcon,
         CdxProgressBar,
       },
 
@@ -258,10 +257,6 @@ $(async () => {
                 : `Wikipedia:WikiProject AI Cleanup/Noticeboard/${this.current_date} ${this.normalized_username}`;
               this.target_page_title = page_title;
               this.target_page_url = mw.util.getUrl(page_title);
-
-              await nextTick();
-              const $content = $(".ainb-helper .ainb-list");
-              if ($content.length) mw.hook("wikipage.content").fire($content);
             }
           } catch (error) {
             this.error = "Error fetching contributions: " + error.message;
@@ -358,6 +353,138 @@ $(async () => {
             ? string.slice(0, max_length - 1) + "..."
             : string || "";
         },
+      },
+    });
+  }
+
+  function create_edit_table_app(article) {
+    const {
+      CdxButton,
+      CdxDialog,
+      CdxSelect,
+      CdxTextArea,
+      CdxProgressBar,
+    } = require("@wikimedia/codex");
+
+    create_app({
+      template: generate_edit_table_template(),
+      components: {
+        CdxButton,
+        CdxDialog,
+        CdxSelect,
+        CdxTextArea,
+        CdxProgressBar,
+      },
+
+      data() {
+        return {
+          is_open: true,
+          article: article,
+          status: "",
+          notes: "",
+          loading: false,
+          saving: false,
+          error: "",
+          wikitext: "",
+          status_options: [
+            { value: "completed", label: "Completed" },
+            { value: "ongoing", label: "Ongoing" },
+            { value: "unnecessary", label: "Unnecessary" },
+            { value: "requested", label: "Requested/To-do" },
+          ],
+        };
+      },
+
+      computed: {
+        dialog_title() {
+          return `Editing row`;
+        },
+        can_save() {
+          return !this.saving && !this.loading && this.status;
+        },
+      },
+
+      methods: {
+        handle_dialog_close() {
+          if (current_app) {
+            current_app.unmount();
+            current_app = null;
+            document.getElementById(APP_ID)?.remove();
+          }
+        },
+
+        async load_row_data() {
+          this.loading = true;
+          this.error = "";
+
+          try {
+            const page_name = mw.config.get("wgPageName");
+            const result = await api.get({
+              action: "parse",
+              page: page_name,
+              prop: "wikitext",
+            });
+
+            const wikitext = result.parse.wikitext["*"];
+            const escaped_article = mw.util.escapeRegExp(this.article);
+            const regex = new RegExp(
+              `\\{\\{AIC article row\\|article=${escaped_article}\\|status=([^|]+)\\|notes=([^}]+)\\}\\}`,
+              "i"
+            );
+
+            const match = wikitext.match(regex);
+
+            if (match) {
+              this.status = match[1].trim();
+              this.notes = match[2].trim();
+              this.wikitext = wikitext;
+            } else {
+              this.error = "Could not find row data for this article.";
+            }
+          } catch (e) {
+            this.error = "Error loading row data: " + e.message;
+            console.error(e);
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async save_changes() {
+          this.saving = true;
+          this.error = "";
+
+          try {
+            const page_name = mw.config.get("wgPageName");
+            const escaped_article = mw.util.escapeRegExp(this.article);
+            const regex = new RegExp(
+              `\\{\\{AIC article row\\|article=${escaped_article}\\|status=[^|]+\\|notes=[^}]+\\}\\}`,
+              "i"
+            );
+
+            const new_row = `{{AIC article row|article=${this.article}|status=${this.status}|notes=${this.notes}}}`;
+            const new_wikitext = this.wikitext.replace(regex, new_row);
+
+            await api.postWithEditToken({
+              action: "edit",
+              title: page_name,
+              text: new_wikitext,
+              summary: `Updated row for [[${this.article}]] ${APP_AD}`,
+            });
+
+            mw.notify("Saved successfully!", { type: "success" });
+            setTimeout(() => location.reload(), 1000);
+            this.handle_dialog_close();
+          } catch (e) {
+            this.error = "Error saving changes: " + e.message;
+            console.error(e);
+          } finally {
+            this.saving = false;
+          }
+        },
+      },
+
+      mounted() {
+        this.load_row_data();
       },
     });
   }
@@ -525,12 +652,113 @@ ${diff_dialog}
 </div>
   `;
   }
+
+  function generate_edit_table_template() {
+    const footer = `    
+    <template #footer>
+      <div class="ainb-dialog-footer">
+        <div></div>
+        <div>
+          <cdx-button @click="handle_dialog_close">Cancel</cdx-button>
+          <cdx-button action="progressive" weight="primary" 
+            @click="save_changes" :disabled="!can_save">
+            {{ saving ? 'Saving...' : 'Save' }}
+          </cdx-button>
+        </div>
+      </div>
+    </template>`;
+
+    return `
+<div>
+  <cdx-dialog class="ainb-edit-table" v-model:open="is_open" 
+    :title="dialog_title" :use-close-button="true"
+    @update:open="handle_dialog_close">
+    
+    <div class="ainb-edit-step">
+      <div v-if="loading" class="ainb-loading">
+        <p>Loading row data...</p>
+        <cdx-progress-bar inline></cdx-progress-bar>
+      </div>
+      
+      <div v-else-if="error" class="ainb-error">{{ error }}</div>
+      
+      <div v-else>
+        <div class="ainb-form-field">
+          Article: <strong>{{ article }}</strong>
+        </div>
+        
+        <div class="ainb-form-field">
+          <div class="ainb-form-label">Status:</div>
+          <div><cdx-select v-model:selected="status" :menu-items="status_options"></cdx-select></div>
+        </div>
+        
+        <div class="ainb-form-field">
+          <div class="ainb-form-label">Notes:</div>
+          <cdx-text-area v-model="notes" rows="4"></cdx-text-area>
+        </div>
+      </div>
+    </div>
+    ${footer}
+  </cdx-dialog>
+</div>
+    `;
+  }
   // end template gen-
 
   // for nicely formatted CSS, see [[User:DVRTed/AINB-helper.css]]
   mw.util.addCSS(
-    ` .ainb-helper .cdx-checkbox, .ainb-helper .cdx-label {margin: 0 !important;}.ainb-helper.cdx-dialog__window, .ainb-helper .cdx-dialog__window, .ainb-helper, .ainb-diff-dialog.cdx-dialog__window, .ainb-diff-dialog .cdx-dialog__window, .ainb-diff-dialog {width: 800px !important;max-width: 90vw !important;}.ainb-dialog-footer .cdx-button {margin: 0 4px;}.ainb-dialog-footer {display: flex;align-items: center;justify-content: space-between;}.ainb-step {padding: 1em 0;max-height: 65vh;overflow-y: auto;}.ainb-subpage-info {padding: 0.75em;background: #f8f9fa;border-left: 3px solid #36c;overflow: hidden;}.ainb-subpage-info strong {font-family: monospace;}.ainb-footer-buttons {min-width: 200px;}.ainb-error {color: #d33;margin-top: 0.5em;padding: 0.5em;background: #fee;border-radius: 2px;}.ainb-loading {text-align: center;}.ainb-controls {display: flex;justify-content: space-between;align-items: center;padding: 0.75em;background: #fbfbfb;margin-bottom: 1em;}.ainb-article-card {border: 2px solid #f7f7f7;border-radius: 4px;margin: 20px 0;overflow: hidden;}.ainb-article-header {padding: 0.75em 1em;background: #fbfbfb;border-bottom: 2px solid #d3d3d3;}.ainb-article-title-row {display: flex;align-items: center;justify-content: space-between;}.ainb-count {color: #858585;font-size: 0.9em;margin: 0 4px;font-weight: normal;}.ainb-diffs {padding: 1em;}.ainb-diff-item {border: 1px solid #eaecf0;border-radius: 8px;padding: 12px;margin-bottom: 12px;background: #fff;transition: all 0.2s ease;box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);}.ainb-diff-item-selected {border-color: #a4c4f0;box-shadow: 0 2px 4px rgba(51, 102, 204, 0.15);background-color: #f8fbff;}.ainb-diff-metadata {display: flex;align-items: center;}.ainb-diff-actions {display: flex;align-items: center;gap: 12px;margin-bottom: 8px;padding-bottom: 8px;border-bottom: 1px solid #f0f0f0;font-size: 0.9em;}.ainb-diff-size {font-weight: 600;margin: 0 8px;font-family: monospace;font-size: 1.1em;padding: 2px 6px;border-radius: 4px;background: #f8f9fa;}.ainb-pos {color: #027202;}.ainb-neg {color: #830101;}.ainb-neu {color: #4b4f53;}.ainb-time {color: #72777d;font-size: 0.85em;margin-left: auto;white-space: nowrap;}.ainb-comment {color: #202122;font-weight: 500;margin-left: 8px;margin-right: 8px;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;display: inline-block;max-width: 60%;vertical-align: middle;}.ainb-diff-popup-overlay {position: fixed;top: 0;left: 0;width: 100vw;height: 100vh;background: rgba(0, 0, 0, 0.5);display: flex;justify-content: center;align-items: center;z-index: 1000;}.ainb-diff-popup-content {background: #fff;width: 85vw;max-width: 1000px;height: 80vh;display: flex;flex-direction: column;border-radius: 8px;box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);overflow: hidden;}.skin-theme-clientpref-night .ainb-diff-popup-content, .skin-theme-clientpref-night {background: #2a2a2a;color: #fff;}.ainb-diff-loading {padding: 1em;color: #72777d;font-style: italic;text-align: center;}.ainb-diff-content {padding: 0.5em;background: #fff;overflow-x: auto;display: flex;justify-content: center;}.ainb-diff-content .diff {max-width: 100%;border-collapse: collapse;font-size: 0.85em;font-family: monospace;table-layout: fixed;}.ainb-diff-content .diff td {padding: 2px 6px;vertical-align: top;word-wrap: break-word;overflow-wrap: anywhere;}.ainb-diff-content .diff-marker {width: 2%;padding: 0 2px;text-align: right;}.ainb-diff-content .diff-context, .ainb-diff-content .diff-addedline, .ainb-diff-content .diff-deletedline {width: 48%;}.ainb-diff-content .diff-addedline {background: #7ef09c;}.ainb-diff-content .diff-deletedline {background: #faa1ac;}.ainb-diff-content .diff-context {background: #f8f9fa;color: #72777d;}.ainb-preview {background: #f8f9fa;padding: 1em;border: 1px solid #eaecf0;border-radius: 2px;max-height: 300px;overflow: auto;font-size: 0.85em;white-space: pre-wrap;}.skin-theme-clientpref-night .ainb-controls, .skin-theme-clientpref-night .ainb-article-header, .skin-theme-clientpref-night .ainb-accordion-header, .skin-theme-clientpref-night .ainb-diff-content, .skin-theme-clientpref-night .ainb-subpage-info, .skin-theme-clientpref-night .ainb-diff-item {background: #2a2a2a;color: #fff;border-color: #4a4a4a;}.skin-theme-clientpref-night .ainb-diff-size {background: #363636;color: #fff;}.skin-theme-clientpref-night .ainb-diff-actions {border-bottom-color: #4a4a4a;}.skin-theme-clientpref-night .ainb-diff-item-selected {border-color: #36c;background-color: #1a2635;}.skin-theme-clientpref-night .ainb-diff-content .diff-context {background: #363636;color: #fff;}.skin-theme-clientpref-night .ainb-diff-content .diff-deletedline {background: #a51729;color: #fff;}.skin-theme-clientpref-night .ainb-diff-content .diff-addedline {background: #087c26;color: #fff;}.skin-theme-clientpref-night .ainb-accordion-header:hover {background: #606060;}.skin-theme-clientpref-night .ainb-comment {color: #ffffff;font-style: italic;}`
+    ` .ainb-helper .cdx-checkbox, .ainb-helper .cdx-label {margin: 0 !important;}.ainb-helper.cdx-dialog__window, .ainb-helper .cdx-dialog__window, .ainb-helper, .ainb-diff-dialog.cdx-dialog__window, .ainb-diff-dialog .cdx-dialog__window, .ainb-diff-dialog {width: 800px !important;max-width: 90vw !important;}.ainb-dialog-footer .cdx-button {margin: 0 4px;}.ainb-dialog-footer {display: flex;align-items: center;justify-content: space-between;}.ainb-step {padding: 1em 0;max-height: 65vh;overflow-y: auto;}.ainb-subpage-info {padding: 0.75em;background: #f8f9fa;border-left: 3px solid #36c;overflow: hidden;}.ainb-subpage-info strong {font-family: monospace;}.ainb-footer-buttons {min-width: 200px;}.ainb-error {color: #d33;margin-top: 0.5em;padding: 0.5em;background: #fee;border-radius: 2px;}.ainb-loading {text-align: center;}.ainb-controls {display: flex;justify-content: space-between;align-items: center;padding: 0.75em;background: #fbfbfb;margin-bottom: 1em;}.ainb-article-card {border: 2px solid #f7f7f7;border-radius: 4px;margin: 20px 0;overflow: hidden;}.ainb-article-header {padding: 0.75em 1em;background: #fbfbfb;border-bottom: 2px solid #d3d3d3;}.ainb-article-title-row {display: flex;align-items: center;justify-content: space-between;}.ainb-count {color: #858585;font-size: 0.9em;margin: 0 4px;font-weight: normal;}.ainb-diffs {padding: 1em;}.ainb-diff-item {border: 1px solid #eaecf0;border-radius: 8px;padding: 12px;margin-bottom: 12px;background: #fff;transition: all 0.2s ease;box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);}.ainb-diff-item-selected {border-color: #a4c4f0;box-shadow: 0 2px 4px rgba(51, 102, 204, 0.15);background-color: #f8fbff;}.ainb-diff-metadata {display: flex;align-items: center;}.ainb-diff-actions {display: flex;align-items: center;gap: 12px;margin-bottom: 8px;padding-bottom: 8px;border-bottom: 1px solid #f0f0f0;font-size: 0.9em;}.ainb-diff-size {font-weight: 600;margin: 0 8px;font-family: monospace;font-size: 1.1em;padding: 2px 6px;border-radius: 4px;background: #f8f9fa;}.ainb-pos {color: #027202;}.ainb-neg {color: #830101;}.ainb-neu {color: #4b4f53;}.ainb-time {color: #72777d;font-size: 0.85em;margin-left: auto;white-space: nowrap;}.ainb-comment {color: #202122;font-weight: 500;margin-left: 8px;margin-right: 8px;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;display: inline-block;max-width: 60%;vertical-align: middle;}.ainb-diff-popup-overlay {position: fixed;top: 0;left: 0;width: 100vw;height: 100vh;background: rgba(0, 0, 0, 0.5);display: flex;justify-content: center;align-items: center;z-index: 1000;}.ainb-diff-popup-content {background: #fff;width: 85vw;max-width: 1000px;height: 80vh;display: flex;flex-direction: column;border-radius: 8px;box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);overflow: hidden;}.skin-theme-clientpref-night .ainb-diff-popup-content, .skin-theme-clientpref-night {background: #2a2a2a;color: #fff;}.ainb-diff-loading {padding: 1em;color: #72777d;font-style: italic;text-align: center;}.ainb-diff-content {padding: 0.5em;background: #fff;overflow-x: auto;display: flex;justify-content: center;}.ainb-diff-content .diff {max-width: 100%;border-collapse: collapse;font-size: 0.85em;font-family: monospace;table-layout: fixed;}.ainb-diff-content .diff td {padding: 2px 6px;vertical-align: top;word-wrap: break-word;overflow-wrap: anywhere;}.ainb-diff-content .diff-marker {width: 2%;padding: 0 2px;text-align: right;}.ainb-diff-content .diff-context, .ainb-diff-content .diff-addedline, .ainb-diff-content .diff-deletedline {width: 48%;}.ainb-diff-content .diff-addedline {background: #7ef09c;}.ainb-diff-content .diff-deletedline {background: #faa1ac;}.ainb-diff-content .diff-context {background: #f8f9fa;color: #72777d;}.ainb-preview {background: #f8f9fa;padding: 1em;border: 1px solid #eaecf0;border-radius: 2px;max-height: 300px;overflow: auto;font-size: 0.85em;white-space: pre-wrap;}.skin-theme-clientpref-night .ainb-controls, .skin-theme-clientpref-night .ainb-article-header, .skin-theme-clientpref-night .ainb-accordion-header, .skin-theme-clientpref-night .ainb-diff-content, .skin-theme-clientpref-night .ainb-subpage-info, .skin-theme-clientpref-night .ainb-diff-item {background: #2a2a2a;color: #fff;border-color: #4a4a4a;}.skin-theme-clientpref-night .ainb-diff-size {background: #363636;color: #fff;}.skin-theme-clientpref-night .ainb-diff-actions {border-bottom-color: #4a4a4a;}.skin-theme-clientpref-night .ainb-diff-item-selected {border-color: #36c;background-color: #1a2635;}.skin-theme-clientpref-night .ainb-diff-content .diff-context {background: #363636;color: #fff;}.skin-theme-clientpref-night .ainb-diff-content .diff-deletedline {background: #a51729;color: #fff;}.skin-theme-clientpref-night .ainb-diff-content .diff-addedline {background: #087c26;color: #fff;}.skin-theme-clientpref-night .ainb-accordion-header:hover {background: #606060;}.skin-theme-clientpref-night .ainb-comment {color: #ffffff;font-style: italic;}.ainb-edit-table.cdx-dialog__window, .ainb-edit-table .cdx-dialog__window, .ainb-edit-table {width: 700px !important;max-width: 90vw !important;}.ainb-edit-btn {font-size: 14px;line-height: 1;}.ainb-edit-btn:hover {background: #e8e9ea;border-color: #999;}.ainb-form-field {margin: 5px 0;}`
   );
+
+  function init_row_editing() {
+    $('tr[class*="aic-row-"]').each(function () {
+      const $thead = $(this).closest("table").find("thead");
+
+      if ($thead.find("th.ainb-action-header").length === 0) {
+        $thead.find("tr").prepend('<th class="ainb-action-header">Action</th>');
+      }
+
+      const $row = $(this);
+      if ($row.find(".ainb-edit-btn").length) return;
+
+      const $first_cell = $row.find("td").first();
+      const $link = $first_cell.find("a").first();
+      if (!$link.length) return;
+
+      const $edit_td = $("<td>").addClass("ainb-action-cell");
+      $first_cell.before($edit_td);
+
+      const $edit_button = $("<button>")
+        .addClass("ainb-edit-btn")
+        .text("✎")
+        .attr("title", "Edit this row")
+        .css({
+          marginLeft: "8px",
+          cursor: "pointer",
+          border: "1px solid #ccc",
+          background: "#f8f9fa",
+          padding: "2px 6px",
+          borderRadius: "3px",
+        })
+        .on("click", (e) => {
+          e.preventDefault();
+          create_edit_table_app($link.text().trim());
+        });
+
+      $edit_td.append($edit_button);
+    });
+  }
+
+  const wgPageName = mw.config.get("wgPageName");
+
+  // if we're on an AINB tracking subpage, or the debug page,
+  // enable editing rows
+  if (
+    wgPageName.startsWith("Wikipedia:WikiProject_AI_Cleanup/Noticeboard/") ||
+    wgPageName === DEBUG_PAGE
+  ) {
+    init_row_editing();
+  }
 
   // </nowiki>
 });
