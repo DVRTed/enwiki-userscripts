@@ -381,16 +381,25 @@ $(async () => {
           is_open: true,
           article: article,
           status: "",
+          raw_status: "",
           notes: "",
           loading: false,
           saving: false,
           error: "",
           wikitext: "",
           status_options: [
-            { value: "completed", label: "Completed" },
-            { value: "ongoing", label: "Ongoing" },
-            { value: "unnecessary", label: "Unnecessary" },
-            { value: "requested", label: "Requested/To-do" },
+            { value: "completed", label: "Completed", aliases: ["c"] },
+            { value: "ongoing", label: "Ongoing", aliases: ["o"] },
+            {
+              value: "unnecessary",
+              label: "Unnecessary",
+              aliases: ["u", "unneeded"],
+            },
+            {
+              value: "requested",
+              label: "Requested/To-do",
+              aliases: ["r", "td", "todo", "to do", "t"],
+            },
           ],
         };
       },
@@ -413,6 +422,23 @@ $(async () => {
           }
         },
 
+        map_params(value) {
+          if (!value) return "";
+          const status = this.status_options.find(
+            (option) =>
+              option.value === value ||
+              option.aliases?.includes(value.toLowerCase())
+          );
+          return status.value || "";
+        },
+
+        get_article_row_regex(escaped_article) {
+          return new RegExp(
+            `\\{\\{AIC article row\\s*\\|\\s*(?:article=)?\\s*${escaped_article}\\s*(?:\\|\\s*(?:status=)?\\s*([^|}]*))?(?:\\s*\\|\\s*(?:notes=)?\\s*([^}]*))?\\s*\\}\\}`,
+            "i"
+          );
+        },
+
         async load_row_data() {
           this.loading = true;
           this.error = "";
@@ -427,16 +453,13 @@ $(async () => {
 
             const wikitext = result.parse.wikitext["*"];
             const escaped_article = mw.util.escapeRegExp(this.article);
-            const regex = new RegExp(
-              `\\{\\{AIC article row\\|article=${escaped_article}\\|status=([^|]+)\\|notes=([^}]+)\\}\\}`,
-              "i"
-            );
+            const regex = this.get_article_row_regex(escaped_article);
 
             const match = wikitext.match(regex);
 
             if (match) {
-              this.status = match[1].trim();
-              this.notes = match[2].trim();
+              this.raw_status = match[1]?.trim() || "requested";
+              this.notes = match[2]?.trim() || "";
               this.wikitext = wikitext;
             } else {
               this.error = "Could not find row data for this article.";
@@ -456,10 +479,7 @@ $(async () => {
           try {
             const page_name = mw.config.get("wgPageName");
             const escaped_article = mw.util.escapeRegExp(this.article);
-            const regex = new RegExp(
-              `\\{\\{AIC article row\\|article=${escaped_article}\\|status=[^|]+\\|notes=[^}]+\\}\\}`,
-              "i"
-            );
+            const regex = this.get_article_row_regex(escaped_article);
 
             const new_row = `{{AIC article row|article=${this.article}|status=${this.status}|notes=${this.notes}}}`;
             const new_wikitext = this.wikitext.replace(regex, new_row);
@@ -483,8 +503,9 @@ $(async () => {
         },
       },
 
-      mounted() {
-        this.load_row_data();
+      async mounted() {
+        await this.load_row_data();
+        this.status = this.map_params(this.raw_status);
       },
     });
   }
