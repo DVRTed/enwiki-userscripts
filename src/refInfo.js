@@ -3,8 +3,6 @@ Shows {{Ref info}} of the current page in a dialog box
 when "Show ref info" is clicked in the Tools section.
 */
 
-/* global mw, $ */
-
 (async () => {
   await mw.loader.using([
     "oojs-ui-core",
@@ -33,17 +31,19 @@ when "Show ref info" is clicked in the Tools section.
       console.error(err);
     }
   }
-window.document.getElementById("kek")
+
   if (mw.config.get("wgCanonicalNamespace") !== "Special") {
-    mw.util
-      .addPortletLink(
-        "p-tb",
-        "#",
-        "Show ref info",
-        "pt-refinfo",
-        "Shows ref info of a page"
-      )
-      ?.addEventListener("click", function (e) {
+    mw.util.addPortletLink(
+      "p-tb",
+      "#",
+      "Show ref info",
+      "pt-refinfo",
+      "Shows ref info of a page"
+    );
+
+    document
+      .getElementById("pt-refinfo")
+      .addEventListener("click", function (e) {
         e.preventDefault();
         show_page_refinfo();
       });
