@@ -4,8 +4,24 @@
 (async () => {
   if (mw.config.get("wgCanonicalNamespace") === "Special") return;
 
-  const api = new mw.Api();
+  let api = new mw.Api();
   const page_name = mw.config.get("wgPageName");
+
+  async function check_page_exists(api, page_name) {
+    try {
+      const data = await api.get({
+        action: "query",
+        titles: page_name,
+        format: "json",
+        formatversion: 2,
+      });
+      return !data.query.pages[0].missing;
+    } catch (e) {
+      // shouldn't happen, but just in case
+      console.error("Error checking if page exists:", e);
+      return false;
+    }
+  }
 
   async function check_lint_errors() {
     const $indicator = $("<div>")
@@ -38,23 +54,48 @@
       "stripped-tag",
     ];
 
-    const [lint_data, section_data] = await Promise.all([
-      api.get({
-        action: "query",
-        list: "linterrors",
-        lnttitle: page_name,
-        lntcategories: error_categories.join("|"),
-        format: "json",
-        formatversion: 2,
-      }),
-      api.get({
-        action: "parse",
-        page: page_name,
-        prop: "sections",
-        format: "json",
-        formatversion: 2,
-      }),
-    ]);
+    const page_exists = await check_page_exists(api, page_name);
+    // thanks to [[User:Polygnotus]] for this idea to handle
+    // userpages that are mirrored from metawiki
+    if (!page_exists) {
+      if (mw.config.get("wgNamespaceNumber") !== 2) {
+        // if page doesn't exist and
+        // it's not a user page, error out
+        $indicator.html(
+          `<span style="color: yellow; font-weight: bold;">Page not found</span>`
+        );
+        return;
+      }
+
+      // check if userpage exists on metawiki
+      const meta_api = new mw.ForeignApi("//meta.wikimedia.org/w/api.php");
+      const page_exists_on_meta = await check_page_exists(meta_api, page_name);
+
+      if (page_exists_on_meta) api = meta_api;
+      else {
+        $indicator.html(
+          `<span style="color: yellow; font-weight: bold;">Page not found</span>`
+        );
+        return;
+      }
+    }
+
+    const section_data = await api.get({
+      action: "parse",
+      page: page_name,
+      prop: "sections",
+      format: "json",
+      formatversion: 2,
+    });
+
+    const lint_data = await api.get({
+      action: "query",
+      list: "linterrors",
+      lnttitle: page_name,
+      lntcategories: error_categories.join("|"),
+      format: "json",
+      formatversion: 2,
+    });
 
     const errors = lint_data.query?.linterrors;
     const sections = section_data.parse.sections;
