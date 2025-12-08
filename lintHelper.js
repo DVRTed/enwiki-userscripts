@@ -1,10 +1,17 @@
 // {{Wikipedia:USync |repo=https://github.com/DVRTed/enwiki-userscripts |ref=refs/heads/prod |path=lintHelper.js}}
+/*
+lintHelper.js
+- Display and ''locate'' Lint errors on a page.
+*/
+
 /* global mw, $ */
 
 (async () => {
   if (mw.config.get("wgCanonicalNamespace") === "Special") return;
 
   let api = new mw.Api();
+  let is_meta = false;
+
   const page_name = mw.config.get("wgPageName");
 
   async function check_page_exists(api, page_name) {
@@ -71,8 +78,10 @@
       const meta_api = new mw.ForeignApi("//meta.wikimedia.org/w/api.php");
       const page_exists_on_meta = await check_page_exists(meta_api, page_name);
 
-      if (page_exists_on_meta) api = meta_api;
-      else {
+      if (page_exists_on_meta) {
+        api = meta_api;
+        is_meta = true;
+      } else {
         $indicator.html(
           `<span style="color: yellow; font-weight: bold;">Page not found</span>`
         );
@@ -243,10 +252,14 @@
       .text("Context:");
 
     const section_number = find_section_for_error(error, sections);
-    const edit_url = mw.util.getUrl(page_name, {
-      action: "edit",
-      section: section_number,
-    });
+    const edit_url = is_meta
+      ? `//meta.wikimedia.org/w/index.php?title=${encodeURIComponent(
+          page_name
+        )}&action=edit&section=${section_number}`
+      : mw.util.getUrl(page_name, {
+          action: "edit",
+          section: section_number,
+        });
 
     const $edit_link = $("<a>")
       .attr("href", edit_url)
