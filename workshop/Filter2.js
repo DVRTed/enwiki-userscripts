@@ -1,12 +1,11 @@
 // Wikipedia History and Contributions Filter
-// Filters by namespace, tags, and edit summary with persistent state
+// Filters by namespace, tags, and edit summary
 // Add to Special:MyPage/common.js
 
 (function () {
   "use strict";
 
   const CONFIG = {
-    STORAGE_KEY: "wikiFilterState",
     DEBOUNCE_TIME: 300,
     NAMESPACES: {
       "-2": "Media",
@@ -62,18 +61,6 @@
       clearTimeout(timeout);
       timeout = setTimeout(() => func.apply(this, args), wait);
     };
-  }
-
-  function loadState() {
-    try {
-      return JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY)) || {};
-    } catch {
-      return {};
-    }
-  }
-
-  function saveState(state) {
-    localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(state));
   }
 
   function getNamespace(title) {
@@ -231,9 +218,8 @@
     document.head.appendChild(style);
   }
 
-  function createCollapsibleSection(title, key) {
-    const state = loadState();
-    const expanded = state[key] !== false; // Default to expanded
+  function createCollapsibleSection(title) {
+    const expanded = true;
 
     const section = document.createElement("div");
     section.className = "wiki-filter-section";
@@ -248,12 +234,9 @@
     const enableCheckbox = document.createElement("input");
     enableCheckbox.type = "checkbox";
     enableCheckbox.className = "wiki-filter-enable";
-    enableCheckbox.checked = state[key + "Enabled"] !== false;
+    enableCheckbox.checked = false;
     enableCheckbox.addEventListener("change", (e) => {
       e.stopPropagation();
-      const currentState = loadState();
-      currentState[key + "Enabled"] = enableCheckbox.checked;
-      saveState(currentState);
       applyFilters();
     });
 
@@ -280,9 +263,6 @@
       if (e.target === enableCheckbox) return;
       const newState = content.style.display === "none";
       setExpanded(newState);
-      const currentState = loadState();
-      currentState[key] = newState;
-      saveState(currentState);
     });
 
     setExpanded(expanded);
@@ -327,8 +307,6 @@
       "Filter by namespace",
       "nsExpanded"
     );
-    const state = loadState();
-    const saved = state.namespaces || [];
 
     const checkboxContainer = document.createElement("div");
     checkboxContainer.className = "wiki-filter-checkboxes";
@@ -344,11 +322,8 @@
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.value = ns;
-      checkbox.checked = saved.length === 0 || saved.includes(ns);
-      checkbox.addEventListener("change", () => {
-        saveFiltersState();
-        applyFilters();
-      });
+      checkbox.checked = false;
+      checkbox.addEventListener("change", applyFilters);
 
       label.appendChild(checkbox);
       label.appendChild(document.createTextNode(ns));
@@ -369,8 +344,6 @@
       "Filter by tags",
       "tagsExpanded"
     );
-    const state = loadState();
-    const saved = state.tags || [];
 
     const checkboxContainer = document.createElement("div");
     checkboxContainer.className = "wiki-filter-checkboxes";
@@ -381,11 +354,8 @@
     const noneCheckbox = document.createElement("input");
     noneCheckbox.type = "checkbox";
     noneCheckbox.value = "none";
-    noneCheckbox.checked = saved.length === 0 || saved.includes("none");
-    noneCheckbox.addEventListener("change", () => {
-      saveFiltersState();
-      applyFilters();
-    });
+    noneCheckbox.checked = true;
+    noneCheckbox.addEventListener("change", applyFilters);
     noneLabel.appendChild(noneCheckbox);
     noneLabel.appendChild(document.createTextNode("None (untagged)"));
     checkboxContainer.appendChild(noneLabel);
@@ -400,11 +370,8 @@
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.value = tag;
-        checkbox.checked = saved.length === 0 || saved.includes(tag);
-        checkbox.addEventListener("change", () => {
-          saveFiltersState();
-          applyFilters();
-        });
+        checkbox.checked = true;
+        checkbox.addEventListener("change", applyFilters);
 
         label.appendChild(checkbox);
         label.appendChild(document.createTextNode(tag));
@@ -423,16 +390,14 @@
       "Filter by edit summary",
       "summaryExpanded"
     );
-    const state = loadState();
 
     const input = document.createElement("input");
     input.type = "text";
     input.className = "wiki-filter-input";
     input.placeholder = "Enter text or regular expression...";
-    input.value = state.summaryFilter || "";
+    input.value = "";
 
     const debouncedFilter = debounce(() => {
-      saveFiltersState();
       applyFilters();
     }, CONFIG.DEBOUNCE_TIME);
 
@@ -444,11 +409,8 @@
     const regexCheckbox = document.createElement("input");
     regexCheckbox.type = "checkbox";
     regexCheckbox.id = "summary-regex";
-    regexCheckbox.checked = state.useRegex || false;
-    regexCheckbox.addEventListener("change", () => {
-      saveFiltersState();
-      applyFilters();
-    });
+    regexCheckbox.checked = false;
+    regexCheckbox.addEventListener("change", applyFilters);
 
     const regexLabel = document.createElement("label");
     regexLabel.htmlFor = "summary-regex";
@@ -494,38 +456,6 @@
     }
   }
 
-  function saveFiltersState() {
-    const state = loadState();
-
-    // Save namespace selections
-    const nsCheckboxes = document.querySelectorAll(
-      ".wiki-filter-section:first-child .wiki-filter-checkbox input"
-    );
-    state.namespaces = Array.from(nsCheckboxes)
-      .filter((cb) => cb.checked)
-      .map((cb) => cb.value);
-
-    // Save tag selections
-    if (tags.size > 0) {
-      const tagCheckboxes = document.querySelectorAll(
-        ".wiki-filter-section:nth-child(2) .wiki-filter-checkbox input"
-      );
-      state.tags = Array.from(tagCheckboxes)
-        .filter((cb) => cb.checked)
-        .map((cb) => cb.value);
-    }
-
-    // Save summary filter
-    const summaryInput = document.querySelector(".wiki-filter-input");
-    const regexCheckbox = document.getElementById("summary-regex");
-    if (summaryInput) {
-      state.summaryFilter = summaryInput.value;
-      state.useRegex = regexCheckbox.checked;
-    }
-
-    saveState(state);
-  }
-
   function matchesSummary(summary, filter, useRegex) {
     if (!filter) return true;
 
@@ -542,15 +472,33 @@
   }
 
   function applyFilters() {
-    const state = loadState();
-    const nsEnabled = state.nsExpandedEnabled !== false;
-    const tagsEnabled = state.tagsExpandedEnabled !== false;
-    const summaryEnabled = state.summaryExpandedEnabled !== false;
+    const nsCheckboxes = document.querySelectorAll(
+      ".wiki-filter-section:first-child .wiki-filter-checkbox input"
+    );
+    const nsEnabled = document.querySelector(
+      ".wiki-filter-section:first-child .wiki-filter-enable"
+    )?.checked;
+    const selectedNs = Array.from(nsCheckboxes)
+      .filter((cb) => cb.checked)
+      .map((cb) => cb.value);
 
-    const selectedNs = state.namespaces || [];
-    const selectedTags = state.tags || [];
-    const summaryFilter = state.summaryFilter || "";
-    const useRegex = state.useRegex || false;
+    const tagCheckboxes = document.querySelectorAll(
+      ".wiki-filter-section:nth-child(2) .wiki-filter-checkbox input"
+    );
+    const tagsEnabled = document.querySelector(
+      ".wiki-filter-section:nth-child(2) .wiki-filter-enable"
+    )?.checked;
+    const selectedTags = Array.from(tagCheckboxes)
+      .filter((cb) => cb.checked)
+      .map((cb) => cb.value);
+
+    const summaryInput = document.querySelector(".wiki-filter-input");
+    const regexCheckbox = document.getElementById("summary-regex");
+    const summaryEnabled = document.querySelector(
+      ".wiki-filter-section:last-child .wiki-filter-enable"
+    )?.checked;
+    const summaryFilter = summaryInput?.value || "";
+    const useRegex = regexCheckbox?.checked || false;
 
     let visibleCount = 0;
 
