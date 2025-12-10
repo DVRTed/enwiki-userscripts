@@ -2,46 +2,16 @@
 // Filters by namespace, tags, and edit summary
 // Add to Special:MyPage/common.js
 
+/* global mw */
+
 (function () {
   "use strict";
 
   const CONFIG = {
     DEBOUNCE_TIME: 300,
-    NAMESPACES: {
-      "-2": "Media",
-      "-1": "Special",
-      0: "Main",
-      1: "Talk",
-      2: "User",
-      3: "User talk",
-      4: "Wikipedia",
-      5: "Wikipedia talk",
-      6: "File",
-      7: "File talk",
-      8: "MediaWiki",
-      9: "MediaWiki talk",
-      10: "Template",
-      11: "Template talk",
-      12: "Help",
-      13: "Help talk",
-      14: "Category",
-      15: "Category talk",
-      100: "Portal",
-      101: "Portal talk",
-      108: "Book",
-      109: "Book talk",
-      118: "Draft",
-      119: "Draft talk",
-      710: "TimedText",
-      711: "TimedText talk",
-      828: "Module",
-      829: "Module talk",
-      2300: "Gadget",
-      2301: "Gadget talk",
-      2302: "Gadget definition",
-      2303: "Gadget definition talk",
-    },
   };
+
+  const NAMESPACES = mw.config.get("wgFormattedNamespaces");
 
   // Detect page type
   const isContribPage =
@@ -64,17 +34,8 @@
   }
 
   function getNamespace(title) {
-    const colonIndex = title.indexOf(":");
-    if (colonIndex === -1) return "Main";
-
-    const prefix = title.substring(0, colonIndex);
-
-    // Check if it's a timestamp (hh:mm format)
-    if (/^\d{1,2}:\d{2}$/.test(prefix)) return "Main";
-
-    // Check against known namespaces
-    const knownNamespaces = new Set(Object.values(CONFIG.NAMESPACES));
-    return knownNamespaces.has(prefix) ? prefix : "Main";
+    const titleObj = new mw.Title(title);
+    return NAMESPACES[titleObj.getNamespaceId()] || "Main";
   }
 
   function getItemData(item) {
