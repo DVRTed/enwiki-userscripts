@@ -1,30 +1,46 @@
-// Wikipedia History and Contributions Filter
-// Filters by namespace, tags, and edit summary
-// Add to Special:MyPage/common.js
+// Adds advanced filters to Contribution and Page History pages
+// ([[Special:Contributions]], [[Special:History]])
 
-/* global mw */
+/* global mw, OO, $ */
 
 (function () {
   "use strict";
 
   const CONFIG = {
     DEBOUNCE_TIME: 300,
+    PAGES: {
+      CONTRIB: {
+        listSelector: ".mw-contributions-list:first",
+        itemSelector: ".mw-contributions-list li",
+        titleSelector: ".mw-contributions-title",
+      },
+      HISTORY: {
+        listSelector: "#pagehistory",
+        itemSelector: "#pagehistory li",
+        titleSelector: "N/A",
+      },
+    },
   };
 
   const NAMESPACES = mw.config.get("wgFormattedNamespaces");
 
-  // Detect page type
-  const isContribPage =
-    document.querySelector(".mw-contributions-list") !== null;
-  const isHistoryPage = document.querySelector("#pagehistory") !== null;
+  const pageType = $(CONFIG.PAGES.HISTORY.listSelector).length
+    ? "HISTORY"
+    : $(CONFIG.PAGES.CONTRIB.listSelector).length
+      ? "CONTRIB"
+      : null;
+  if (!pageType) return;
 
-  if (!isContribPage && !isHistoryPage) return;
+  const isContrib = pageType === "CONTRIB";
 
+  const selectors = CONFIG.PAGES[pageType];
   let items = [];
   let namespaces = new Set();
   let tags = new Set();
+  let widgets = {};
 
-  // Utility functions
+  // this is used for debouncing summary filtering to
+  // avoid re-filtering on every keystroke
   function debounce(func, wait) {
     let timeout;
     return function (...args) {
@@ -38,486 +54,282 @@
     return NAMESPACES[titleObj.getNamespaceId()] || "Main";
   }
 
-  function getItemData(item) {
-    let title = "";
-    let summary = "";
-    let itemTags = [];
+  function extractTags($item) {
+    return $item
+      .find(".mw-tag-marker")
+      .map((_, tag) => $(tag).text().replace(/[[\]]/g, "").trim())
+      .get();
+  }
 
-    if (isContribPage) {
-      const titleElem = item.querySelector(".mw-contributions-title");
-      title = titleElem ? titleElem.textContent.trim() : "";
+  function getItemData($item) {
+    const $title = isContrib ? $item.find(selectors.titleSelector) : "";
+    const $summary = $item.find(".comment");
 
-      const summaryElem = item.querySelector(".comment");
-      summary = summaryElem ? summaryElem.textContent.trim() : "";
-
-      itemTags = Array.from(item.querySelectorAll(".mw-tag-marker")).map(
-        (tag) => tag.textContent.replace(/[[\]]/g, "").trim()
-      );
-    } else {
-      const link = item.querySelector("a.mw-changeslist-title");
-      title = link ? link.textContent.trim() : "";
-
-      const summaryElem = item.querySelector(".comment");
-      summary = summaryElem ? summaryElem.textContent.trim() : "";
-
-      itemTags = Array.from(item.querySelectorAll(".mw-tag-marker")).map(
-        (tag) => tag.textContent.replace(/[[\]]/g, "").trim()
-      );
-    }
-
-    const namespace = getNamespace(title);
+    const title = $title.length ? $title.text().trim() : "";
+    const summary = $summary.text().trim();
+    const itemTags = extractTags($item);
+    const namespace = title ? getNamespace(title) : "";
 
     return { title, summary, tags: itemTags, namespace };
   }
 
   function initializeData() {
-    const selector = isContribPage
-      ? ".mw-contributions-list li"
-      : "#pagehistory li";
-    items = Array.from(document.querySelectorAll(selector));
+    $(selectors.itemSelector).each((_, item) => {
+      const $item = $(item);
+      const data = getItemData($item);
 
-    items.forEach((item) => {
-      const data = getItemData(item);
       namespaces.add(data.namespace);
       data.tags.forEach((tag) => tags.add(tag));
-      item._filterData = data;
+
+      items.push({ element: item, data });
     });
   }
 
-  function addStyles() {
-    const style = document.createElement("style");
-    style.textContent = `
-            .wiki-filter-container {
-                margin: 1em 0;
-                background: #f8f9fa;
-                border: 1px solid #a2a9b1;
-                border-radius: 2px;
-            }
-            .wiki-filter-section {
-                border-bottom: 1px solid #e3e6e8;
-            }
-            .wiki-filter-section:last-child {
-                border-bottom: none;
-            }
-            .wiki-filter-header {
-                padding: 0.6em 0.8em;
-                background: #eaecf0;
-                cursor: pointer;
-                user-select: none;
-                display: flex;
-                align-items: center;
-                font-weight: 500;
-            }
-            .wiki-filter-header:hover {
-                background: #e3e6e8;
-            }
-            .wiki-filter-toggle {
-                margin-right: 0.5em;
-                transition: transform 0.2s;
-                display: inline-block;
-            }
-            .wiki-filter-enable {
-                cursor: pointer;
-                margin: 0;
-            }
-            .wiki-filter-content {
-                padding: 0.8em;
-            }
-            .wiki-filter-checkboxes {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.8em;
-                margin: 0.5em 0;
-            }
-            .wiki-filter-checkbox {
-                white-space: nowrap;
-            }
-            .wiki-filter-checkbox input {
-                margin-right: 0.3em;
-            }
-            .wiki-filter-buttons {
-                display: flex;
-                gap: 0.5em;
-                margin-bottom: 0.8em;
-            }
-            .wiki-filter-btn {
-                padding: 0.4em 0.8em;
-                background: #fff;
-                border: 1px solid #a2a9b1;
-                border-radius: 2px;
-                cursor: pointer;
-                font-size: 0.9em;
-            }
-            .wiki-filter-btn:hover {
-                background: #f8f9fa;
-            }
-            .wiki-filter-input {
-                width: 100%;
-                padding: 0.5em;
-                border: 1px solid #a2a9b1;
-                border-radius: 2px;
-                font-size: 0.95em;
-                box-sizing: border-box;
-            }
-            .wiki-filter-regex-option {
-                margin-top: 0.5em;
-                font-size: 0.9em;
-            }
-            .wiki-filter-regex-option input {
-                margin-right: 0.3em;
-            }
-            .wiki-filter-stats {
-                margin-top: 0.8em;
-                padding: 0.5em;
-                background: #fff;
-                border: 1px solid #e3e6e8;
-                border-radius: 2px;
-                font-size: 0.9em;
-                color: #54595d;
-            }
-        `;
-    document.head.appendChild(style);
+  function createMultiSelectFilter(label, placeholder, optionsArray, onChange) {
+    const selector = new OO.ui.MenuTagMultiselectWidget({
+      placeholder,
+      options: optionsArray.map((item) =>
+        typeof item === "string" ? { data: item, label: item } : item
+      ),
+      input: { autocomplete: "off" },
+    });
+
+    selector.on("change", onChange);
+
+    return new OO.ui.FieldLayout(selector, { label, align: "top" });
   }
 
-  function createCollapsibleSection(title) {
-    const expanded = true;
-
-    const section = document.createElement("div");
-    section.className = "wiki-filter-section";
-
-    const header = document.createElement("div");
-    header.className = "wiki-filter-header";
-
-    const toggle = document.createElement("span");
-    toggle.className = "wiki-filter-toggle";
-    toggle.textContent = "▼";
-
-    const enableCheckbox = document.createElement("input");
-    enableCheckbox.type = "checkbox";
-    enableCheckbox.className = "wiki-filter-enable";
-    enableCheckbox.checked = false;
-    enableCheckbox.addEventListener("change", (e) => {
-      e.stopPropagation();
-      applyFilters();
-    });
-
-    const heading = document.createElement("span");
-    heading.textContent = title;
-    heading.style.marginLeft = "0.5em";
-
-    header.appendChild(toggle);
-    header.appendChild(enableCheckbox);
-    header.appendChild(heading);
-
-    const content = document.createElement("div");
-    content.className = "wiki-filter-content";
-
-    section.appendChild(header);
-    section.appendChild(content);
-
-    function setExpanded(exp) {
-      toggle.style.transform = exp ? "" : "rotate(-90deg)";
-      content.style.display = exp ? "" : "none";
-    }
-
-    header.addEventListener("click", (e) => {
-      if (e.target === enableCheckbox) return;
-      const newState = content.style.display === "none";
-      setExpanded(newState);
-    });
-
-    setExpanded(expanded);
-    return { section, content, enableCheckbox };
-  }
-
-  function createButtons(parent, checkboxSelector) {
-    const container = document.createElement("div");
-    container.className = "wiki-filter-buttons";
-
-    const selectAll = document.createElement("button");
-    selectAll.type = "button";
-    selectAll.textContent = "Select all";
-    selectAll.className = "wiki-filter-btn";
-    selectAll.addEventListener("click", (e) => {
-      e.preventDefault();
-      parent
-        .querySelectorAll(checkboxSelector)
-        .forEach((cb) => (cb.checked = true));
-      applyFilters();
-    });
-
-    const selectNone = document.createElement("button");
-    selectNone.type = "button";
-    selectNone.textContent = "Select none";
-    selectNone.className = "wiki-filter-btn";
-    selectNone.addEventListener("click", (e) => {
-      e.preventDefault();
-      parent
-        .querySelectorAll(checkboxSelector)
-        .forEach((cb) => (cb.checked = false));
-      applyFilters();
-    });
-
-    container.appendChild(selectAll);
-    container.appendChild(selectNone);
-    return container;
-  }
-
-  function createNamespaceSection() {
-    const { section, content } = createCollapsibleSection(
-      "Filter by namespace",
-      "nsExpanded"
-    );
-
-    const checkboxContainer = document.createElement("div");
-    checkboxContainer.className = "wiki-filter-checkboxes";
-
+  function createNamespaceFilter() {
     const sortedNs = Array.from(namespaces).sort((a, b) =>
       a === "Main" ? -1 : b === "Main" ? 1 : a.localeCompare(b)
     );
 
-    sortedNs.forEach((ns) => {
-      const label = document.createElement("label");
-      label.className = "wiki-filter-checkbox";
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.value = ns;
-      checkbox.checked = false;
-      checkbox.addEventListener("change", applyFilters);
-
-      label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(ns));
-      checkboxContainer.appendChild(label);
-    });
-
-    const buttons = createButtons(checkboxContainer, 'input[type="checkbox"]');
-    content.appendChild(buttons);
-    content.appendChild(checkboxContainer);
-
-    return section;
+    return createMultiSelectFilter(
+      "Namespaces",
+      "Select namespaces...",
+      sortedNs,
+      applyFilters
+    );
   }
 
-  function createTagSection() {
+  function createTagFilter() {
     if (tags.size === 0) return null;
 
-    const { section, content } = createCollapsibleSection(
-      "Filter by tags",
-      "tagsExpanded"
+    const options = [
+      { data: "none", label: "None (untagged)" },
+      ...Array.from(tags).sort(),
+    ];
+
+    return createMultiSelectFilter(
+      "Tags",
+      "Select tags...",
+      options,
+      applyFilters
     );
-
-    const checkboxContainer = document.createElement("div");
-    checkboxContainer.className = "wiki-filter-checkboxes";
-
-    // Add "None" option
-    const noneLabel = document.createElement("label");
-    noneLabel.className = "wiki-filter-checkbox";
-    const noneCheckbox = document.createElement("input");
-    noneCheckbox.type = "checkbox";
-    noneCheckbox.value = "none";
-    noneCheckbox.checked = true;
-    noneCheckbox.addEventListener("change", applyFilters);
-    noneLabel.appendChild(noneCheckbox);
-    noneLabel.appendChild(document.createTextNode("None (untagged)"));
-    checkboxContainer.appendChild(noneLabel);
-
-    // Add tag options
-    Array.from(tags)
-      .sort()
-      .forEach((tag) => {
-        const label = document.createElement("label");
-        label.className = "wiki-filter-checkbox";
-
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = tag;
-        checkbox.checked = true;
-        checkbox.addEventListener("change", applyFilters);
-
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(tag));
-        checkboxContainer.appendChild(label);
-      });
-
-    const buttons = createButtons(checkboxContainer, 'input[type="checkbox"]');
-    content.appendChild(buttons);
-    content.appendChild(checkboxContainer);
-
-    return section;
   }
 
-  function createSummarySection() {
-    const { section, content } = createCollapsibleSection(
-      "Filter by edit summary",
-      "summaryExpanded"
-    );
+  function createSummaryFilter() {
+    const input = new OO.ui.TextInputWidget({
+      placeholder: "Filter by edit summary...",
+      icon: "search",
+    });
 
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "wiki-filter-input";
-    input.placeholder = "Enter text or regular expression...";
-    input.value = "";
+    const regexToggle = new OO.ui.ToggleSwitchWidget();
 
-    const debouncedFilter = debounce(() => {
-      applyFilters();
-    }, CONFIG.DEBOUNCE_TIME);
+    const errorMessage = new OO.ui.MessageWidget({
+      type: "error",
+      inline: true,
+    });
+    errorMessage.$element.css({
+      display: "none",
+      marginTop: "1em",
+    });
 
-    input.addEventListener("input", debouncedFilter);
+    input.on("change", debounce(applyFilters, CONFIG.DEBOUNCE_TIME));
+    regexToggle.on("change", applyFilters);
 
-    const regexOption = document.createElement("div");
-    regexOption.className = "wiki-filter-regex-option";
+    const $container = $("<div>")
+      .append(
+        $("<div>")
+          .css("marginTop", "1em")
+          .append(
+            new OO.ui.FieldLayout(input, {
+              label: "Edit summary",
+              align: "top",
+            }).$element
+          )
+          .append(errorMessage.$element)
+      )
+      .append(
+        $("<div>")
+          .css("marginTop", "1em")
+          .append(
+            new OO.ui.FieldLayout(regexToggle, {
+              label: "Use regex",
+              align: "inline",
+            }).$element
+          )
+      );
 
-    const regexCheckbox = document.createElement("input");
-    regexCheckbox.type = "checkbox";
-    regexCheckbox.id = "summary-regex";
-    regexCheckbox.checked = false;
-    regexCheckbox.addEventListener("change", applyFilters);
-
-    const regexLabel = document.createElement("label");
-    regexLabel.htmlFor = "summary-regex";
-    regexLabel.appendChild(regexCheckbox);
-    regexLabel.appendChild(
-      document.createTextNode("Use regular expression (case-insensitive)")
-    );
-
-    regexOption.appendChild(regexLabel);
-
-    content.appendChild(input);
-    content.appendChild(regexOption);
-
-    return section;
+    return { container: $container, input, regexToggle, errorMessage };
   }
 
   function createUI() {
-    const container = document.createElement("div");
-    container.className = "wiki-filter-container";
+    const nsFilter = isContrib ? createNamespaceFilter() : null;
+    const tagFilter = createTagFilter();
+    const summaryFilter = createSummaryFilter();
 
-    const nsSection = createNamespaceSection();
-    container.appendChild(nsSection);
+    widgets = {
+      nsSelector: nsFilter?.fieldWidget,
+      tagSelector: tagFilter?.fieldWidget,
+      summaryInput: summaryFilter.input,
+      regexToggle: summaryFilter.regexToggle,
+      regexError: summaryFilter.errorMessage,
+      statsLabel: new OO.ui.LabelWidget({ label: "" }),
+    };
 
-    const tagSection = createTagSection();
-    if (tagSection) {
-      container.appendChild(tagSection);
-    }
+    const fieldset = new OO.ui.FieldsetLayout({
+      label: "Advanced filters",
+    });
 
-    const summarySection = createSummarySection();
-    container.appendChild(summarySection);
+    if (nsFilter) fieldset.addItems([nsFilter]);
+    if (tagFilter) fieldset.addItems([tagFilter]);
+    fieldset.$element.append(summaryFilter.container);
 
-    const stats = document.createElement("div");
-    stats.className = "wiki-filter-stats";
-    stats.id = "filter-stats";
-    container.appendChild(stats);
+    const resetButton = new OO.ui.ButtonWidget({
+      label: "Reset all filters",
+      flags: ["progressive", "secondary"],
+    });
 
-    const targetList = isContribPage
-      ? document.querySelector(".mw-contributions-list")
-      : document.querySelector("#pagehistory");
+    resetButton.on("click", resetFilters);
 
-    if (targetList) {
-      targetList.parentNode.insertBefore(container, targetList);
+    const $footer = $("<div>")
+      .css({
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: "1em",
+        paddingTop: "1em",
+        borderTop: "1px solid #BEBEBE",
+      })
+      .append(widgets.statsLabel.$element, resetButton.$element);
+
+    fieldset.$element.append($footer);
+
+    const panel = new OO.ui.PanelLayout({
+      expanded: false,
+      framed: true,
+      padded: true,
+    });
+
+    panel.$element.append(fieldset.$element);
+    $(selectors.listSelector).before(panel.$element);
+  }
+
+  // summary match with regex support;
+  // throws "REGEX_ERROR" error if invalid regex
+  function matchesSummary(summary, filter, useRegex) {
+    if (!filter) return true;
+    try {
+      return useRegex
+        ? new RegExp(filter, "i").test(summary)
+        : summary.toLowerCase().includes(filter.toLowerCase());
+    } catch (e) {
+      const err = new Error(e.message);
+      err.code = "REGEX_ERROR";
+      throw err;
     }
   }
 
-  function matchesSummary(summary, filter, useRegex) {
-    if (!filter) return true;
+  function itemPassesFilters(data, filters) {
+    const { selectedNs, selectedTags, summaryFilter, useRegex } = filters;
 
-    try {
-      if (useRegex) {
-        const regex = new RegExp(filter, "i");
-        return regex.test(summary);
-      } else {
-        return summary.toLowerCase().includes(filter.toLowerCase());
-      }
-    } catch {
+    // namespace filter
+    if (selectedNs.length > 0 && !selectedNs.includes(data.namespace)) {
       return false;
     }
+
+    // tag filter
+    if (selectedTags.length > 0) {
+      const hasNoTags = data.tags.length === 0;
+      const matchesTag = data.tags.some((tag) => selectedTags.includes(tag));
+
+      if (hasNoTags ? !selectedTags.includes("none") : !matchesTag) {
+        return false;
+      }
+    }
+
+    // summary filter w/out regex
+    if (
+      summaryFilter &&
+      !matchesSummary(data.summary, summaryFilter, useRegex)
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
   function applyFilters() {
-    const nsCheckboxes = document.querySelectorAll(
-      ".wiki-filter-section:first-child .wiki-filter-checkbox input"
-    );
-    const nsEnabled = document.querySelector(
-      ".wiki-filter-section:first-child .wiki-filter-enable"
-    )?.checked;
-    const selectedNs = Array.from(nsCheckboxes)
-      .filter((cb) => cb.checked)
-      .map((cb) => cb.value);
-
-    const tagCheckboxes = document.querySelectorAll(
-      ".wiki-filter-section:nth-child(2) .wiki-filter-checkbox input"
-    );
-    const tagsEnabled = document.querySelector(
-      ".wiki-filter-section:nth-child(2) .wiki-filter-enable"
-    )?.checked;
-    const selectedTags = Array.from(tagCheckboxes)
-      .filter((cb) => cb.checked)
-      .map((cb) => cb.value);
-
-    const summaryInput = document.querySelector(".wiki-filter-input");
-    const regexCheckbox = document.getElementById("summary-regex");
-    const summaryEnabled = document.querySelector(
-      ".wiki-filter-section:last-child .wiki-filter-enable"
-    )?.checked;
-    const summaryFilter = summaryInput?.value || "";
-    const useRegex = regexCheckbox?.checked || false;
+    const filters = {
+      selectedNs: widgets.nsSelector?.getValue() || [],
+      selectedTags: widgets.tagSelector?.getValue() || [],
+      summaryFilter: widgets.summaryInput.getValue() || "",
+      useRegex: widgets.regexToggle.getValue(),
+    };
 
     let visibleCount = 0;
+    let hasRegexError = false;
 
-    items.forEach((item) => {
-      const data = item._filterData;
-      let show = true;
-
-      // Namespace filter - only apply if enabled
-      if (nsEnabled && selectedNs.length > 0) {
-        if (!selectedNs.includes(data.namespace)) {
-          show = false;
-        }
-      }
-
-      // Tag filter - only apply if enabled
-      if (show && tagsEnabled && tags.size > 0 && selectedTags.length > 0) {
-        if (data.tags.length === 0) {
-          if (!selectedTags.includes("none")) {
-            show = false;
+    for (const { element, data } of items) {
+      try {
+        const show = itemPassesFilters(data, filters);
+        element.style.display = show ? "" : "none";
+        if (show) visibleCount++;
+      } catch (e) {
+        if (e.code === "REGEX_ERROR") {
+          hasRegexError = true;
+          // hide all elements if regex is invalid
+          for (const { element: el } of items) {
+            el.style.display = "none";
           }
+          widgets.regexError.setLabel(
+            `Invalid regular expression: ${e.message}`
+          );
+          console.log("Regex error in filter:", e.message);
+          break;
         } else {
-          if (!data.tags.some((tag) => selectedTags.includes(tag))) {
-            show = false;
-          }
+          throw e;
         }
       }
-
-      // Summary filter - only apply if enabled
-      if (show && summaryEnabled && summaryFilter) {
-        if (!matchesSummary(data.summary, summaryFilter, useRegex)) {
-          show = false;
-        }
-      }
-
-      item.style.display = show ? "" : "none";
-      if (show) visibleCount++;
-    });
-
-    updateStats(visibleCount);
-  }
-
-  function updateStats(visible) {
-    const stats = document.getElementById("filter-stats");
-    if (stats) {
-      stats.textContent = `Showing ${visible} of ${items.length} items`;
     }
+
+    widgets.regexError.$element.css("display", hasRegexError ? "" : "none");
+
+    let text;
+    if (visibleCount === items.length) {
+      text = `Showing all ${items.length} items`;
+    } else {
+      text = `Showing ${visibleCount} of ${items.length} items`;
+    }
+    widgets.statsLabel.setLabel(text);
   }
 
-  function init() {
-    addStyles();
-    initializeData();
-    createUI();
+  function resetFilters() {
+    widgets.nsSelector.setValue([]);
+    widgets.tagSelector?.setValue([]);
+    widgets.summaryInput.setValue("");
+    widgets.regexToggle.setValue(false);
     applyFilters();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
+  function init() {
+    mw.loader.using(["oojs-ui-core", "oojs-ui-widgets"], () => {
+      initializeData();
+      createUI();
+      applyFilters();
+    });
   }
+
+  $(init);
 })();
