@@ -37,6 +37,7 @@
   let items = [];
   let namespaces = new Set();
   let tags = new Set();
+  let users = new Set();
   let widgets = {};
 
   // this is used for debouncing summary filtering to
@@ -64,13 +65,15 @@
   function getItemData($item) {
     const $title = isContrib ? $item.find(selectors.titleSelector) : "";
     const $summary = $item.find(".comment");
+    const $userLink = $item.find(".mw-userlink");
 
     const title = $title.length ? $title.text().trim() : "";
     const summary = $summary.text().trim();
     const itemTags = extractTags($item);
     const namespace = title ? getNamespace(title) : "";
+    const user = $userLink.length ? $userLink.text().trim() : "";
 
-    return { title, summary, tags: itemTags, namespace };
+    return { title, summary, tags: itemTags, namespace, user };
   }
 
   function initializeData() {
@@ -80,6 +83,7 @@
 
       namespaces.add(data.namespace);
       data.tags.forEach((tag) => tags.add(tag));
+      if (data.user) users.add(data.user);
 
       items.push({ element: item, data });
     });
@@ -124,6 +128,21 @@
       "Tags",
       "Select tags...",
       options,
+      applyFilters
+    );
+  }
+
+  function createUserFilter() {
+    if (users.size === 0) return null;
+
+    const sortedUsers = Array.from(users).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+
+    return createMultiSelectFilter(
+      "Users",
+      "Select users...",
+      sortedUsers,
       applyFilters
     );
   }
@@ -177,11 +196,13 @@
   function createUI() {
     const nsFilter = isContrib ? createNamespaceFilter() : null;
     const tagFilter = createTagFilter();
+    const userFilter = !isContrib ? createUserFilter() : null;
     const summaryFilter = createSummaryFilter();
 
     widgets = {
       nsSelector: nsFilter?.fieldWidget,
       tagSelector: tagFilter?.fieldWidget,
+      userSelector: userFilter?.fieldWidget,
       summaryInput: summaryFilter.input,
       regexToggle: summaryFilter.regexToggle,
       regexError: summaryFilter.errorMessage,
@@ -194,6 +215,7 @@
 
     if (nsFilter) fieldset.addItems([nsFilter]);
     if (tagFilter) fieldset.addItems([tagFilter]);
+    if (userFilter) fieldset.addItems([userFilter]);
     fieldset.$element.append(summaryFilter.container);
 
     const resetButton = new OO.ui.ButtonWidget({
@@ -242,7 +264,7 @@
   }
 
   function itemPassesFilters(data, filters) {
-    const { selectedNs, selectedTags, summaryFilter, useRegex } = filters;
+    const { selectedNs, selectedTags, selectedUsers, summaryFilter, useRegex } = filters;
 
     // namespace filter
     if (selectedNs.length > 0 && !selectedNs.includes(data.namespace)) {
@@ -257,6 +279,11 @@
       if (hasNoTags ? !selectedTags.includes("none") : !matchesTag) {
         return false;
       }
+    }
+
+    // user filter
+    if (selectedUsers.length > 0 && !selectedUsers.includes(data.user)) {
+      return false;
     }
 
     // summary filter w/out regex
@@ -274,6 +301,7 @@
     const filters = {
       selectedNs: widgets.nsSelector?.getValue() || [],
       selectedTags: widgets.tagSelector?.getValue() || [],
+      selectedUsers: widgets.userSelector?.getValue() || [],
       summaryFilter: widgets.summaryInput.getValue() || "",
       useRegex: widgets.regexToggle.getValue(),
     };
@@ -316,8 +344,9 @@
   }
 
   function resetFilters() {
-    widgets.nsSelector.setValue([]);
+    widgets.nsSelector?.setValue([]);
     widgets.tagSelector?.setValue([]);
+    widgets.userSelector?.setValue([]);
     widgets.summaryInput.setValue("");
     widgets.regexToggle.setValue(false);
     applyFilters();
