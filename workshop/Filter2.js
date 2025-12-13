@@ -57,7 +57,7 @@
   function extractTags($item) {
     return $item
       .find(".mw-tag-marker")
-      .map((_, tag) => $(tag).text().replace(/[[\]]/g, "").trim())
+      .map((_, tag) => $(tag).text().trim())
       .get();
   }
 
