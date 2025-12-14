@@ -8,6 +8,7 @@
 
   const CONFIG = {
     DEBOUNCE_TIME: 300,
+    STORAGE_KEY: "advancedFiltersExpanded",
     PAGES: {
       CONTRIB: {
         listSelector: ".mw-contributions-list:first",
@@ -27,8 +28,8 @@
   const pageType = $(CONFIG.PAGES.HISTORY.listSelector).length
     ? "HISTORY"
     : $(CONFIG.PAGES.CONTRIB.listSelector).length
-      ? "CONTRIB"
-      : null;
+    ? "CONTRIB"
+    : null;
   if (!pageType) return;
 
   const isContrib = pageType === "CONTRIB";
@@ -193,6 +194,23 @@
     return { container: $container, input, regexToggle, errorMessage };
   }
 
+  function saveCollapsedState(isExpanded) {
+    try {
+      localStorage.setItem(CONFIG.STORAGE_KEY, isExpanded ? "true" : "false");
+    } catch (e) {
+      console.error("Failed to save filter panel state:", e);
+    }
+  }
+
+  function getCollapsedState() {
+    try {
+      const stored = localStorage.getItem(CONFIG.STORAGE_KEY);
+      return stored === null ? true : stored === "true";
+    } catch {
+      return true;
+    }
+  }
+
   function createUI() {
     const nsFilter = isContrib ? createNamespaceFilter() : null;
     const tagFilter = createTagFilter();
@@ -209,15 +227,6 @@
       statsLabel: new OO.ui.LabelWidget({ label: "" }),
     };
 
-    const fieldset = new OO.ui.FieldsetLayout({
-      label: "Advanced filters",
-    });
-
-    if (nsFilter) fieldset.addItems([nsFilter]);
-    if (tagFilter) fieldset.addItems([tagFilter]);
-    if (userFilter) fieldset.addItems([userFilter]);
-    fieldset.$element.append(summaryFilter.container);
-
     const resetButton = new OO.ui.ButtonWidget({
       label: "Reset all filters",
       flags: ["progressive", "secondary"],
@@ -232,11 +241,68 @@
         alignItems: "center",
         marginTop: "1em",
         paddingTop: "1em",
-        borderTop: "1px solid #BEBEBE",
       })
       .append(widgets.statsLabel.$element, resetButton.$element);
 
-    fieldset.$element.append($footer);
+    const innerFieldset = new OO.ui.FieldsetLayout();
+
+    if (nsFilter) innerFieldset.addItems([nsFilter]);
+    if (tagFilter) innerFieldset.addItems([tagFilter]);
+    if (userFilter) innerFieldset.addItems([userFilter]);
+    innerFieldset.$element.append(summaryFilter.container);
+    innerFieldset.$element.append($footer);
+
+    const fieldset = new OO.ui.FieldsetLayout({
+      label: "Advanced filters",
+    });
+
+    const isExpanded = getCollapsedState();
+
+    fieldset.$element
+      .addClass("mw-collapsibleFieldsetLayout")
+      .addClass("mw-collapsible");
+
+    if (!isExpanded) {
+      fieldset.$element.addClass("mw-collapsed");
+    }
+
+    // make the header itself the toggle button
+    fieldset.$header.addClass("mw-collapsible-toggle").attr({
+      role: "button",
+      tabindex: "0",
+      "aria-expanded": isExpanded ? "true" : "false",
+    });
+
+    if (!isExpanded) {
+      fieldset.$header.addClass("mw-collapsible-toggle-collapsed");
+    } else {
+      fieldset.$header.addClass("mw-collapsible-toggle-expanded");
+    }
+
+    const expandIcon = new OO.ui.IconWidget({
+      icon: "expand",
+      label: "show",
+    });
+    const collapseIcon = new OO.ui.IconWidget({
+      icon: "collapse",
+      label: "hide",
+    });
+
+    fieldset.$header.append(expandIcon.$element, collapseIcon.$element);
+
+    // rm the default group w/ our
+    // content wrapped in .mw-collapsible-content
+    fieldset.$group.remove();
+    const $content = $("<div>")
+      .addClass("oo-ui-fieldsetLayout-group")
+      .addClass("mw-collapsible-content")
+      .append(innerFieldset.$element);
+
+    if (!isExpanded) {
+      $content.attr("hidden", "until-found");
+    }
+
+    fieldset.$element.append($content);
 
     const panel = new OO.ui.PanelLayout({
       expanded: false,
@@ -246,6 +312,20 @@
 
     panel.$element.append(fieldset.$element);
     $(selectors.listSelector).before(panel.$element);
+
+    mw.loader.using("jquery.makeCollapsible", function () {
+      fieldset.$element.makeCollapsible({
+        collapsed: !isExpanded,
+      });
+
+      fieldset.$element.on("beforeExpand.mw-collapsible", function () {
+        saveCollapsedState(true);
+      });
+
+      fieldset.$element.on("beforeCollapse.mw-collapsible", function () {
+        saveCollapsedState(false);
+      });
+    });
   }
 
   // summary match with regex support;
@@ -264,7 +344,8 @@
   }
 
   function itemPassesFilters(data, filters) {
-    const { selectedNs, selectedTags, selectedUsers, summaryFilter, useRegex } = filters;
+    const { selectedNs, selectedTags, selectedUsers, summaryFilter, useRegex } =
+      filters;
 
     // namespace filter
     if (selectedNs.length > 0 && !selectedNs.includes(data.namespace)) {
