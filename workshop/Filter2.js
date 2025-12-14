@@ -1,5 +1,5 @@
-// Adds advanced filters to Contribution and Page History pages
-// ([[Special:Contributions]], [[Special:History]])
+// Adds advanced filters to Contribution, Page History, and LinkSearch pages
+// ([[Special:Contributions]], [[Special:History]], [[Special:LinkSearch]])
 
 /* global mw, OO, $ */
 
@@ -20,19 +20,32 @@
         itemSelector: "#pagehistory li",
         titleSelector: "N/A",
       },
+      LINKSEARCH: {
+        listSelector: ".mw-spcontent ol",
+        itemSelector: ".mw-spcontent ol li",
+        titleSelector: "a:not(.external)",
+      },
     },
   };
 
   const NAMESPACES = mw.config.get("wgFormattedNamespaces");
 
-  const pageType = $(CONFIG.PAGES.HISTORY.listSelector).length
-    ? "HISTORY"
-    : $(CONFIG.PAGES.CONTRIB.listSelector).length
-    ? "CONTRIB"
-    : null;
+  const canonicalSpecialPageName = mw.config.get("wgCanonicalSpecialPageName");
+  let pageType = null;
+
+  if (canonicalSpecialPageName === "Contributions") {
+    pageType = "CONTRIB";
+  } else if (canonicalSpecialPageName === "LinkSearch") {
+    pageType = "LINKSEARCH";
+  } else if ($(CONFIG.PAGES.HISTORY.listSelector).length) {
+    pageType = "HISTORY";
+  }
+
   if (!pageType) return;
 
   const isContrib = pageType === "CONTRIB";
+  const isHistory = pageType === "HISTORY";
+  const isLinkSearch = pageType === "LINKSEARCH";
 
   const selectors = CONFIG.PAGES[pageType];
   let items = [];
@@ -64,6 +77,16 @@
   }
 
   function getItemData($item) {
+    if (isLinkSearch) {
+      // get the non-external link and extract namespace
+      const $titleLink = $item.find(selectors.titleSelector);
+      const title = $titleLink.length ? $titleLink.text().trim() : "";
+      const namespace = title ? getNamespace(title) : "";
+
+      return { title, summary: "", tags: [], namespace, user: "" };
+    }
+
+    // for Contrib/History page...
     const $title = isContrib ? $item.find(selectors.titleSelector) : "";
     const $summary = $item.find(".comment");
     const $userLink = $item.find(".mw-userlink");
@@ -212,18 +235,18 @@
   }
 
   function createUI() {
-    const nsFilter = isContrib ? createNamespaceFilter() : null;
-    const tagFilter = createTagFilter();
-    const userFilter = !isContrib ? createUserFilter() : null;
-    const summaryFilter = createSummaryFilter();
+    const nsFilter = isContrib || isLinkSearch ? createNamespaceFilter() : null;
+    const tagFilter = !isLinkSearch ? createTagFilter() : null;
+    const userFilter = isHistory ? createUserFilter() : null;
+    const summaryFilter = !isLinkSearch ? createSummaryFilter() : null;
 
     widgets = {
       nsSelector: nsFilter?.fieldWidget,
       tagSelector: tagFilter?.fieldWidget,
       userSelector: userFilter?.fieldWidget,
-      summaryInput: summaryFilter.input,
-      regexToggle: summaryFilter.regexToggle,
-      regexError: summaryFilter.errorMessage,
+      summaryInput: summaryFilter?.input,
+      regexToggle: summaryFilter?.regexToggle,
+      regexError: summaryFilter?.errorMessage,
       statsLabel: new OO.ui.LabelWidget({ label: "" }),
     };
 
@@ -249,7 +272,7 @@
     if (nsFilter) innerFieldset.addItems([nsFilter]);
     if (tagFilter) innerFieldset.addItems([tagFilter]);
     if (userFilter) innerFieldset.addItems([userFilter]);
-    innerFieldset.$element.append(summaryFilter.container);
+    if (summaryFilter) innerFieldset.$element.append(summaryFilter.container);
     innerFieldset.$element.append($footer);
 
     const fieldset = new OO.ui.FieldsetLayout({
@@ -296,6 +319,7 @@
     const $content = $("<div>")
       .addClass("oo-ui-fieldsetLayout-group")
       .addClass("mw-collapsible-content")
+      .css("max-width", "none") // override a default for contribs page
       .append(innerFieldset.$element);
 
     if (!isExpanded) {
@@ -347,32 +371,40 @@
     const { selectedNs, selectedTags, selectedUsers, summaryFilter, useRegex } =
       filters;
 
-    // namespace filter
-    if (selectedNs.length > 0 && !selectedNs.includes(data.namespace)) {
-      return false;
-    }
-
-    // tag filter
-    if (selectedTags.length > 0) {
-      const hasNoTags = data.tags.length === 0;
-      const matchesTag = data.tags.some((tag) => selectedTags.includes(tag));
-
-      if (hasNoTags ? !selectedTags.includes("none") : !matchesTag) {
+    // namespace filter (Contrib, History, LinkSearch)
+    if (isContrib || isHistory || isLinkSearch) {
+      if (selectedNs.length > 0 && !selectedNs.includes(data.namespace)) {
         return false;
       }
     }
 
-    // user filter
-    if (selectedUsers.length > 0 && !selectedUsers.includes(data.user)) {
-      return false;
+    // tag filter (Contrib, History)
+    if (isContrib || isHistory) {
+      if (selectedTags.length > 0) {
+        const hasNoTags = data.tags.length === 0;
+        const matchesTag = data.tags.some((tag) => selectedTags.includes(tag));
+
+        if (hasNoTags ? !selectedTags.includes("none") : !matchesTag) {
+          return false;
+        }
+      }
     }
 
-    // summary filter w/out regex
-    if (
-      summaryFilter &&
-      !matchesSummary(data.summary, summaryFilter, useRegex)
-    ) {
-      return false;
+    // user filter (History)
+    if (isHistory) {
+      if (selectedUsers.length > 0 && !selectedUsers.includes(data.user)) {
+        return false;
+      }
+    }
+
+    // summary filter (Contrib, History)
+    if (isContrib || isHistory) {
+      if (
+        summaryFilter &&
+        !matchesSummary(data.summary, summaryFilter, useRegex)
+      ) {
+        return false;
+      }
     }
 
     return true;
@@ -383,8 +415,8 @@
       selectedNs: widgets.nsSelector?.getValue() || [],
       selectedTags: widgets.tagSelector?.getValue() || [],
       selectedUsers: widgets.userSelector?.getValue() || [],
-      summaryFilter: widgets.summaryInput.getValue() || "",
-      useRegex: widgets.regexToggle.getValue(),
+      summaryFilter: widgets.summaryInput?.getValue() || "",
+      useRegex: widgets.regexToggle?.getValue() || false,
     };
 
     let visibleCount = 0;
@@ -402,9 +434,9 @@
           for (const { element: el } of items) {
             el.style.display = "none";
           }
-          widgets.regexError.setLabel(
-            `Invalid regular expression: ${e.message}`
-          );
+          if (widgets.regexError) {
+            widgets.regexError.setLabel(`${e.message}`);
+          }
           console.log("Regex error in filter:", e.message);
           break;
         } else {
@@ -413,7 +445,9 @@
       }
     }
 
-    widgets.regexError.$element.css("display", hasRegexError ? "" : "none");
+    if (widgets.regexError) {
+      widgets.regexError.$element.css("display", hasRegexError ? "" : "none");
+    }
 
     let text;
     if (visibleCount === items.length) {
@@ -428,8 +462,8 @@
     widgets.nsSelector?.setValue([]);
     widgets.tagSelector?.setValue([]);
     widgets.userSelector?.setValue([]);
-    widgets.summaryInput.setValue("");
-    widgets.regexToggle.setValue(false);
+    widgets.summaryInput?.setValue("");
+    widgets.regexToggle?.setValue(false);
     applyFilters();
   }
 
