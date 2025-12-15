@@ -1,5 +1,8 @@
-// Adds advanced filters to Contribution, Page History, and LinkSearch pages
-// ([[Special:Contributions]], [[Special:History]], [[Special:LinkSearch]])
+/* Adds advanced filters to Contribution, Page History, and LinkSearch pages
+([[Special:Contributions]], [[Special:History]], [[Special:LinkSearch]])
+
+Script authors: [[User:DVRTed]], [[User:Polygnotus]]
+*/
 
 /* global mw, OO, $ */
 
