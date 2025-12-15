@@ -1,6 +1,9 @@
 // {{Wikipedia:USync |repo=https://github.com/DVRTed/enwiki-userscripts |ref=refs/heads/prod |path=addMoreFilters.js}}
-// Adds advanced filters to Contribution, Page History, and LinkSearch pages
-// ([[Special:Contributions]], [[Special:History]], [[Special:LinkSearch]])
+/* Adds advanced filters to Contribution, Page History, and LinkSearch pages
+([[Special:Contributions]], [[Special:History]], [[Special:LinkSearch]])
+
+Script authors: [[User:DVRTed]], [[User:Polygnotus]]
+*/
 
 /* global mw, OO, $ */
 
