@@ -81,4 +81,14 @@ describe("parse_ref", () => {
     expect(result.access_date).toBe(null);
     expect(result.is_bare_ref).toBe(false);
   });
+
+  test("url containing =", () => {
+    const result = parse_ref(
+      `{{cite web|archive-url=https://archive.org/example?page=100}}`
+    );
+
+    expect(result.template_name).toBe("cite web");
+    expect(result.url).toBe("https://archive.org/example?page=100");
+    expect(result.is_bare_ref).toBe(false);
+  });
 });
