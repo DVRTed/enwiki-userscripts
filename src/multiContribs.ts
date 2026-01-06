@@ -258,7 +258,7 @@ Usage:
           .get("users")!
           .split(",")
           .join("\n");
-        this.loadContributions();
+        // this.loadContributions();
       }
     }
 
