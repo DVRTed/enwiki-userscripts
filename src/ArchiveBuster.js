@@ -384,7 +384,6 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   if (portlet_link)
     $(portlet_link).on("click", (e) => {
       e.preventDefault();
-      console.clear();
       vm.launch();
     });
 
@@ -502,11 +501,11 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 .skin-theme-clientpref-night .archb-dialog .archb-archive {
   background: #686532;
 }
-.skin-theme-clientpref-night .archb-dialog .arcb-param {
-  background: #be7ae8;
+.skin-theme-clientpref-night .archb-dialog .archb-param {
+  color: #be7ae8;
 }
-.skin-theme-clientpref-night .archb-dialog .arcb-value {
-  background: #07c47f;
+.skin-theme-clientpref-night .archb-dialog .archb-value {
+  color: #07c47f;
 }
 .skin-theme-clientpref-night .archb-dialog .archb-option-desc {
   color: #9aa3aa;
