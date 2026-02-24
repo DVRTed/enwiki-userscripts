@@ -1,0 +1,121 @@
+.archb-dialog {
+  width: 900px !important;
+  max-width: 90vw !important;
+
+  .archb-muted {
+    color: #72777d;
+  }
+
+  .archb-section {
+    margin: 10px 0;
+  }
+
+  .archb-info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .archb-info-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.9em;
+    flex-wrap: wrap;
+  }
+  .archb-key {
+    min-width: 90px;
+    color: #494949;
+    font-size: 0.85em;
+    flex-shrink: 0;
+  }
+  .archb-archive-link {
+    color: #e45a0b;
+  }
+
+  .archb-search-link {
+    display: inline-block;
+    padding: 2px 9px;
+    background: #e4e8f3;
+    border: 1px solid #c0d1f1;
+    border-radius: 10px;
+    color: #3165cc;
+    text-decoration: none;
+  }
+  .archb-search-link:hover {
+    background: #dce8fb;
+  }
+
+  .archb-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 0.82em;
+    font-weight: 600;
+  }
+  .archb-badge-live {
+    background: #d5fde5;
+    color: #14532d;
+  }
+
+  .archb-param {
+    color: #7105b4;
+    font-weight: 600;
+  }
+  .archb-value {
+    color: #026e47;
+  }
+
+  .archb-archive {
+    background-color: #fff9a0;
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+
+  .archb-options {
+    display: flex;
+    gap: 8px;
+  }
+
+  .archb-option-remove {
+    flex: 1;
+  }
+
+  .archb-option-replace {
+    flex: 2;
+  }
+  .archb-option {
+    border: 1px solid #eaecf0;
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .archb-option-recommended {
+    border-color: #3366cc;
+    background: #f6f9ff;
+  }
+  .archb-option-title {
+    font-weight: 600;
+  }
+
+  .archb-option-desc {
+    font-size: 0.85em;
+    color: #53575a;
+  }
+  .archb-tag {
+    display: inline-block;
+    font-size: 0.78em;
+    font-weight: normal;
+    background: #3366cc;
+    color: #fff;
+    border-radius: 3px;
+    padding: 1px 8px;
+  }
+
+  .archb-skip-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+}
