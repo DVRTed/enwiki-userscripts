@@ -498,5 +498,21 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   display: flex;
   justify-content: space-between;
   margin-bottom: 0.5rem;
+}
+
+.skin-theme-clientpref-night .archb-dialog .archb-archive {
+  background: #686532;
+}
+.skin-theme-clientpref-night .archb-dialog .arcb-param {
+  background: #be7ae8;
+}
+.skin-theme-clientpref-night .archb-dialog .arcb-value {
+  background: #07c47f;
+}
+.skin-theme-clientpref-night .archb-dialog .archb-option-desc {
+  color: #9aa3aa;
+}
+.skin-theme-clientpref-night .archb-dialog .archb-option-recommended {
+  background: #090e17;
 }`);
 });
