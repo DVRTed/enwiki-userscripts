@@ -117,7 +117,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 `;
 
   const dialog_template = /*html*/ `
-<cdx-dialog v-model:open="open" title="Manage archive.today links in this article" :close-button-label="'Close'"
+<cdx-dialog v-model:open="open" title="ArchiveBuster" subtitle="Manage archive.today links in this article" :close-button-label="'Close'"
     class="archb-dialog">
     <template v-if="current">
         ${status_template}
