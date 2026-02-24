@@ -119,3 +119,28 @@
     margin-bottom: 0.5rem;
   }
 }
+
+// tweaks for dark mode
+.skin-theme-clientpref-night {
+  .archb-dialog {
+    .archb-archive {
+      background: #686532;
+    }
+
+    .arcb-param {
+      background: #be7ae8;
+    }
+
+    .arcb-value {
+      background: #07c47f;
+    }
+
+    .archb-option-desc {
+      color: #9aa3aa;
+    }
+
+    .archb-option-recommended {
+      background: #090e17;
+    }
+  }
+}
