@@ -8,7 +8,7 @@ Why? See [[Wikipedia:archive.today guidance]].
 
 Contributing:
 - a tip to work with the vue template variables below (because vue support for userscripts is... awful):
-  if you're using vscode or any of its bazzilion clones, 
+  if you're using VS Code/Code – OSS or any of its bazillion clones, 
   after making changes to the template strings, copy the string to a new blank file,
   set language to HTML and format the document with default formatter "HTML Language Features"
 */
@@ -118,7 +118,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 `;
 
   const dialog_template = /*html*/ `
-<cdx-dialog v-model:open="open" title="Manage archive.today links in this article" :close-button-label="'Close'"
+<cdx-dialog v-model:open="open" title="ArchiveBuster" subtitle="Manage archive.today links in this article" :close-button-label="'Close'"
     class="archb-dialog">
     <template v-if="current">
         ${status_template}
@@ -329,6 +329,8 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         if (this.apply_change(this.current.original_text, new_text)) {
           this.current.done = true;
           this.replaced++;
+          this.new_url = "";
+          this.new_date = "";
           this.update_edit_summary();
         } else {
           mw.notify(
@@ -385,7 +387,6 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   if (portlet_link)
     $(portlet_link).on("click", (e) => {
       e.preventDefault();
-      console.clear();
       vm.launch();
     });
 
@@ -503,11 +504,11 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 .skin-theme-clientpref-night .archb-dialog .archb-archive {
   background: #686532;
 }
-.skin-theme-clientpref-night .archb-dialog .arcb-param {
-  background: #be7ae8;
+.skin-theme-clientpref-night .archb-dialog .archb-param {
+  color: #be7ae8;
 }
-.skin-theme-clientpref-night .archb-dialog .arcb-value {
-  background: #07c47f;
+.skin-theme-clientpref-night .archb-dialog .archb-value {
+  color: #07c47f;
 }
 .skin-theme-clientpref-night .archb-dialog .archb-option-desc {
   color: #9aa3aa;
