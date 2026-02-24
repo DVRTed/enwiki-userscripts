@@ -328,6 +328,8 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         if (this.apply_change(this.current.original_text, new_text)) {
           this.current.done = true;
           this.replaced++;
+          this.new_url = "";
+          this.new_date = "";
           this.update_edit_summary();
         } else {
           mw.notify(
