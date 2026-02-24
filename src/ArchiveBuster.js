@@ -7,7 +7,7 @@ Why? See [[Wikipedia:archive.today guidance]].
 
 Contributing:
 - a tip to work with the vue template variables below (because vue support for userscripts is... awful):
-  if you're using vscode or any of its bazzilion clones, 
+  if you're using VS Code/Code – OSS or any of its bazillion clones, 
   after making changes to the template strings, copy the string to a new blank file,
   set language to HTML and format the document with default formatter "HTML Language Features"
 */
