@@ -108,6 +108,42 @@
   margin-bottom: 0.5rem;
 }
 
+.archb-wayback-dialog .cdx-dialog__body {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.archb-wayback-dialog .archb-wayback-results-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.archb-wayback-dialog .archb-wayback-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #eaecf0;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+.archb-wayback-dialog .archb-wayback-result-info {
+  display: flex;
+  flex-direction: column;
+}
+.archb-wayback-dialog .archb-wayback-time {
+  font-weight: bold;
+}
+.archb-wayback-dialog .archb-wayback-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.archb-wayback-dialog .archb-wayback-result-actions a {
+  text-decoration: none;
+  font-weight: 600;
+  color: #2d61ca;
+}
+
 .skin-theme-clientpref-night .archb-dialog .archb-archive {
   background: #686532;
 }
@@ -122,6 +158,9 @@
 }
 .skin-theme-clientpref-night .archb-dialog .archb-option-recommended {
   background: #090e17;
+}
+.skin-theme-clientpref-night .archb-wayback-dialog .archb-wayback-result-item {
+  border-color: #333;
 }
 
 /*# sourceMappingURL=ArchiveBuster.css.map */

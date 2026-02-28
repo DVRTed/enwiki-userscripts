@@ -120,6 +120,44 @@
   }
 }
 
+.archb-wayback-dialog {
+  .cdx-dialog__body {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  .archb-wayback-results-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .archb-wayback-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #eaecf0;
+    padding: 8px 12px;
+    border-radius: 4px;
+  }
+  .archb-wayback-result-info {
+    display: flex;
+    flex-direction: column;
+  }
+  .archb-wayback-time {
+    font-weight: bold;
+  }
+  .archb-wayback-result-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .archb-wayback-result-actions a {
+    text-decoration: none;
+    font-weight: 600;
+    color: #2d61caff;
+  }
+}
+
 // tweaks for dark mode
 .skin-theme-clientpref-night {
   .archb-dialog {
@@ -141,6 +179,12 @@
 
     .archb-option-recommended {
       background: #090e17;
+    }
+  }
+
+  .archb-wayback-dialog {
+    .archb-wayback-result-item {
+      border-color: #333;
     }
   }
 }

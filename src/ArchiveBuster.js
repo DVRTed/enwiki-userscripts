@@ -20,6 +20,11 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 
   const APP_ID = "archb";
   const SCRIPT_AD = `(using [[User:DVRTed/ArchiveBuster|ArchiveBuster]])`;
+  const WAYBACK_CDX_API = "https://web.archive.org/cdx/search/cdx?url=";
+
+  // cloudflare worker proxy;
+  // thx to [[User:Polygnotus]]; source code here: [[e:User:Polygnotus/Data/CloudflareWorker]]
+  const PROXY_URL = `https://archive-proxy.snowmine.workers.dev/?url=${WAYBACK_CDX_API}`;
 
   const textarea = $("#wpTextbox1");
   if (!textarea.length) return;
@@ -77,7 +82,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
     </div>
     <div v-if="current.archive_url" class="archb-info-row">
         <span class="archb-key">Archive URL</span>
-        <a href="#" class="archb-archive-link">{{ current.archive_url }}</a>
+        <a :href="current.archive_url" target="_blank" rel="noopener noreferrer" class="archb-archive-link">{{ current.archive_url }}</a>
     </div>
     ${search_archives_template}
 </div>
@@ -109,27 +114,100 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
             <cdx-text-input v-model="new_url" input-type="url"
                 placeholder="https://web.archive.org/web/20230101120000/https://example.com/" />
             <cdx-text-input v-model="new_date" placeholder="e.g. 15 January 2023  (leave blank to keep existing)" />
-            <cdx-button weight="primary" action="progressive" :disabled="!new_url.trim()"
-                @click="handle_replace">Replace archive link</cdx-button>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+                <cdx-button weight="primary" action="progressive" :disabled="!new_url.trim()"
+                    @click="handle_replace">Replace archive link</cdx-button>
+                <cdx-button @click="open_auto_wayback" :disabled="!current || !current.url">Try automatic wayback</cdx-button>
+            </div>
         </div>
     </div>
 </section>
 `;
 
-  const dialog_template = /*html*/ `
-<cdx-dialog v-model:open="open" title="ArchiveBuster" subtitle="Manage archive.today links in this article" :close-button-label="'Close'"
-    class="archb-dialog">
-    <template v-if="current">
-        ${status_template}
-        ${citation_details_template}
-        ${citation_actions_template}
-    </template>
-    <template v-else>
-        <h3>All done!</h3>
-        <h4>Please preview the changes before submitting the edit.</h4>
-        ${progress_template}
-    </template>
+  const auto_wayback_template = /*html*/ `
+<cdx-dialog v-model:open="auto_wayback_open" title="Automatic Wayback Machine" subtitle="Find recent archives"
+    :close-button-label="'Close'" class="archb-dialog archb-wayback-dialog">
+    <div v-if="auto_wayback_status === 'idle'">
+        <p>
+            This will query the Wayback Machine CDX API via a third-party proxy to
+            find available archives for:
+        </p>
+        <p style="word-break: break-all">
+            <strong>{{ current && current.url }}</strong>
+        </p>
+        <p class="archb-muted">
+            Using proxy: <code>${PROXY_URL.split("?")[0]}</code>
+        </p>
+
+        <div style="margin-top: 15px; display: flex; gap: 8px">
+            <cdx-button action="progressive" weight="primary" @click="fetch_auto_wayback">Confirm & Fetch</cdx-button>
+            <cdx-button @click="close_auto_wayback">Cancel</cdx-button>
+        </div>
+    </div>
+    <div v-else-if="auto_wayback_status === 'loading'">
+        <p>Querying CDX API...</p>
+    </div>
+    <div v-else-if="auto_wayback_status === 'error'">
+        <p style="color: #d33">Error: {{ auto_wayback_error_msg }}</p>
+        <div style="margin-top: 15px">
+            <cdx-button @click="close_auto_wayback">Close</cdx-button>
+        </div>
+    </div>
+    <div v-else-if="auto_wayback_status === 'success'">
+        <div v-if="current && (current.archive_date || current.archive_url)" style="margin-bottom: 10px">
+            <div v-if="current.archive_date">
+                <span class="archb-key">Original archive date:</span>
+                <strong>{{ current.archive_date }}</strong>
+            </div>
+            <div v-if="current.archive_url" style="margin-top: 4px">
+                <span class="archb-key">Original archive link:</span>
+                <a :href="current.archive_url" target="_blank" rel="noopener noreferrer" class="archb-archive-link">{{
+                    current.archive_url }}</a>
+            </div>
+        </div>
+        <p>
+            Found {{ auto_wayback_results.length }} archive(s). Select one to apply:
+        </p>
+        <div class="archb-wayback-results-list">
+            <div v-for="res in auto_wayback_results" :key="res.timestamp" class="archb-wayback-result-item">
+                <div class="archb-wayback-result-info">
+                    <div class="archb-wayback-time">
+                        {{ format_timestamp(res.timestamp, true) }}
+                    </div>
+                    <div class="archb-wayback-status archb-muted">
+                        {{res.length}} &middot; HTTP {{ res.statuscode }}
+                    </div>
+                </div>
+                <div class="archb-wayback-result-actions">
+                    <a :href="res.url" target="_blank" rel="noopener noreferrer">Visit</a>
+                    <cdx-button @click="apply_auto_wayback(res)">Apply</cdx-button>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 15px">
+            <cdx-button @click="close_auto_wayback">Close</cdx-button>
+        </div>
+    </div>
 </cdx-dialog>
+`;
+
+  const dialog_template = /*html*/ `
+<div class="archb-app">
+    <cdx-dialog v-model:open="open" title="ArchiveBuster" subtitle="Manage archive.today links in this article"
+        :close-button-label="'Close'" class="archb-dialog">
+        <template v-if="current">
+            ${status_template}
+            ${citation_details_template}
+            ${citation_actions_template}
+        </template>
+        <template v-else>
+            <h3>All done!</h3>
+            <h4>Please preview the changes before submitting the edit.</h4>
+            ${progress_template}
+        </template>
+    </cdx-dialog>
+    ${auto_wayback_template}
+</div>
 `;
 
   const app = createMwApp({
@@ -144,6 +222,10 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         new_url: "",
         new_date: "",
         open: false,
+        auto_wayback_open: false,
+        auto_wayback_status: "idle",
+        auto_wayback_results: [],
+        auto_wayback_error_msg: "",
       };
     },
 
@@ -236,6 +318,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
               url: get("url"),
               url_status: url_status.toLowerCase(),
               archive_url,
+              archive_date: get("archive-date", "archivedate"),
               title: get("title"),
               has_archive_today:
                 !!archive_url && ARCHIVE_TODAY_RE.test(archive_url),
@@ -261,7 +344,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         debug("Removing archive link from current citation", this.current);
         const new_text = this.current.original_text
           .replace(
-            /\|\s*(?:archive-?url|archive-?date|archiveurl|archivedate|url-?status)\s*=[^|}]*/gi,
+            /\|\s*(?:archive[-_]?url|archive[-_]?date|url[-_]?status)\s*=[^|}]*/gi,
             "",
           )
           .replace(/\|\s*\|\s*/g, "|")
@@ -327,6 +410,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 
         if (this.apply_change(this.current.original_text, new_text)) {
           this.current.done = true;
+          mw.notify("Archive link replaced.", { type: "success" });
           this.replaced++;
           this.new_url = "";
           this.new_date = "";
@@ -347,6 +431,101 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         $("#wpSummary").val(new_summary);
       },
 
+      open_auto_wayback() {
+        this.auto_wayback_open = true;
+        this.auto_wayback_status = "idle";
+        this.auto_wayback_results = [];
+        this.auto_wayback_error_msg = "";
+      },
+
+      close_auto_wayback() {
+        this.auto_wayback_open = false;
+      },
+
+      async fetch_auto_wayback() {
+        if (!this.current || !this.current.url) return;
+        this.auto_wayback_status = "loading";
+
+        try {
+          const target_url = encodeURIComponent(this.current.url);
+          const cdx_args = `${target_url}&limit=50&output=json&fl=timestamp,statuscode,length`;
+          const proxy_target = `${PROXY_URL}${encodeURIComponent(cdx_args)}`;
+          debug("Querying wayback API with:", proxy_target);
+          const response = await fetch(proxy_target);
+          if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+
+          let data = await response.json();
+          if (Array.isArray(data) && data.length > 1) {
+            // rm header
+            data.shift();
+            this.auto_wayback_results = data
+              // only 2xx responses
+              .filter(row => row[1] && row[1].startsWith("2"))
+              .map(row => {
+                const [timestamp, statuscode, length] = row;
+
+                const formatted_length = new Intl.NumberFormat("en", {
+                  style: "unit",
+                  unit: "kilobyte",
+                  unitDisplay: "short",
+                  maximumFractionDigits: 2
+                }).format(length / 1024);
+
+                const wb_url = `https://web.archive.org/web/${timestamp}/${this.current.url}`;
+                return { timestamp, statuscode, url: wb_url, length: formatted_length };
+              }).reverse();
+            this.auto_wayback_status = "success";
+          } else {
+            this.auto_wayback_status = "error";
+            this.auto_wayback_error_msg = "No archives found.";
+          }
+        } catch (err) {
+          console.error("Auto wayback error:", err);
+          this.auto_wayback_status = "error";
+          this.auto_wayback_error_msg = err.message || "Request failed.";
+        }
+      },
+
+      apply_auto_wayback(res) {
+        this.new_url = res.url;
+        const parsed = this.parse_timestamp(res.timestamp);
+        if (parsed) {
+          const formatted = this.format_timestamp(res.timestamp);
+          this.new_date = formatted;
+        }
+        this.close_auto_wayback();
+      },
+
+      parse_timestamp(ts) {
+        if (!ts || ts.length < 8) return null;
+
+        const year = ts.slice(0, 4);
+        const month = ts.slice(4, 6);
+        const day = ts.slice(6, 8);
+        const hour = ts.slice(8, 10);
+        const minute = ts.slice(10, 12);
+        const second = ts.slice(12, 14);
+
+        return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+      },
+
+      format_timestamp(ts, with_time = false) {
+        const parsed = this.parse_timestamp(ts);
+        if (!parsed) return ts;
+
+        return new Intl.DateTimeFormat("en-GB", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          ...(with_time && {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+          }),
+          timeZone: "UTC"
+        }).format(parsed);
+      },
+
       launch() {
         debug("Running the app...");
         const wikitext = textarea.val();
@@ -364,7 +543,9 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         this.new_url = "";
         this.new_date = "";
         this.open = true;
-        debug(`this.open = ${this.open}`);
+        this.removed = 0;
+        this.replaced = 0;
+        debug(`this.open = ${this.open} `);
       },
     },
 
@@ -500,6 +681,42 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   margin-bottom: 0.5rem;
 }
 
+.archb-wayback-dialog .cdx-dialog__body {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.archb-wayback-dialog .archb-wayback-results-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.archb-wayback-dialog .archb-wayback-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #eaecf0;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+.archb-wayback-dialog .archb-wayback-result-info {
+  display: flex;
+  flex-direction: column;
+}
+.archb-wayback-dialog .archb-wayback-time {
+  font-weight: bold;
+}
+.archb-wayback-dialog .archb-wayback-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.archb-wayback-dialog .archb-wayback-result-actions a {
+  text-decoration: none;
+  font-weight: 600;
+  color: #2d61ca;
+}
+
 .skin-theme-clientpref-night .archb-dialog .archb-archive {
   background: #686532;
 }
@@ -514,5 +731,8 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
 }
 .skin-theme-clientpref-night .archb-dialog .archb-option-recommended {
   background: #090e17;
+}
+.skin-theme-clientpref-night .archb-wayback-dialog .archb-wayback-result-item {
+  border-color: #333;
 }`);
 });
