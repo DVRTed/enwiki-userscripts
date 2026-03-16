@@ -30,7 +30,7 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
   const textarea = $("#wpTextbox1");
   if (!textarea.length) return;
 
-  const DEBUG = false;
+  const DEBUG = true;
   const debug = (...args) => {
     if (!DEBUG) return;
     console.log(`[DEBUG] [${APP_ID}]`, ...args);
@@ -166,8 +166,11 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
                     current.archive_url }}</a>
             </div>
         </div>
-        <p>
+        <p v-if="auto_wayback_results.length > 0">
             Found {{ auto_wayback_results.length }} archive(s). Select one to apply:
+        </p>
+        <p v-else>
+            No archives found.
         </p>
         <div class="archb-wayback-results-list">
             <div v-for="res in auto_wayback_results" :key="res.timestamp" class="archb-wayback-result-item">
@@ -427,7 +430,12 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
       },
 
       update_edit_summary() {
-        const new_summary = `Removed ${this.removed}, replaced ${this.replaced} archive.today link(s) ${SCRIPT_AD}`;
+        if (this.removed === 0 && this.replaced === 0) return;
+        const stats = [];
+        if (this.removed > 0) stats.push(`removed ${this.removed}`);
+        if (this.replaced > 0) stats.push(`replaced ${this.replaced}`);
+
+        const new_summary = `${stats.join(", ")} archive.today link(s) ${SCRIPT_AD}`;
         debug("Updating edit summary to: ", new_summary);
         $("#wpSummary").val(new_summary);
       },
@@ -450,12 +458,66 @@ mw.loader.using(["vue", "@wikimedia/codex"]).then((require) => {
         try {
           const target_url = encodeURIComponent(this.current.url);
           const cdx_args = `${target_url}&limit=50&output=json&fl=timestamp,statuscode,length`;
-          const proxy_target = `${PROXY_URL}${encodeURIComponent(cdx_args)}`;
-          debug("Querying wayback API with:", proxy_target);
-          const response = await fetch(proxy_target);
-          if (!response.ok) throw new Error(`HTTP error ${response.status}`);
 
-          let data = await response.json();
+          let from_arg = "";
+          let to_arg = "";
+
+          if (this.current.archive_date) {
+            const raw_date = this.current.archive_date.trim();
+            const d = new Date(raw_date);
+
+            if (!isNaN(d.valueOf())) {
+              const from_date = new Date(d);
+              from_date.setDate(from_date.getDate() - 30);
+              const to_date = new Date(d);
+              to_date.setDate(to_date.getDate() + 90);
+
+              const format_wayback_date = (date) => {
+                return date.toISOString().replace(/[-:T]/g, "").slice(0, 14);
+              };
+
+              from_arg = format_wayback_date(from_date);
+              to_arg = format_wayback_date(to_date);
+              debug("Calculated target date window", { from: from_arg, to: to_arg, original_parsed_date: d });
+            } else {
+              debug("Could not parse archive_date:", raw_date);
+            }
+          }
+
+          let data = null;
+          let valid_rows = 0;
+
+          if (from_arg && to_arg) {
+            const window_args = `${cdx_args}&from=${from_arg}&to=${to_arg}`;
+            const proxy_target = `${PROXY_URL}${encodeURIComponent(window_args)}`;
+            debug("Querying wayback API for snapshots around archive date:", proxy_target);
+
+            try {
+              const response = await fetch(proxy_target);
+              if (response.ok) {
+                data = await response.json();
+                if (Array.isArray(data) && data.length > 1) {
+                  valid_rows = data.slice(1).filter(row => row[1] && row[1].startsWith("2")).length;
+                }
+              } else {
+                debug("Date window request failed with status:", response.status);
+              }
+            } catch (e) {
+              debug("Date window fetch failed:", e);
+            }
+          }
+
+          if (valid_rows === 0) {
+            if (from_arg && to_arg) {
+              debug("No valid 2xx archives found in date window. Falling back to recent archives...");
+            }
+            const proxy_target = `${PROXY_URL}${encodeURIComponent(cdx_args)}`;
+            debug("Querying wayback API for recent snapshots:", proxy_target);
+            const response = await fetch(proxy_target);
+            if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+            data = await response.json();
+          }
+
           if (Array.isArray(data) && data.length > 1) {
             // rm header
             data.shift();
