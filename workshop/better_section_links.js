@@ -112,7 +112,8 @@ mw.loader
       );
 
       const button = new OO.ui.ButtonMenuSelectWidget({
-        icon: "ellipsis",
+        icon: "linkExternal",
+        // icon: "ellipsis",
         framed: false,
         title: "Section options",
         menu: { items: menu_items },
