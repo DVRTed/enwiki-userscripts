@@ -1,0 +1,32 @@
+name: Daily Discord Update
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-discord-updates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: workshop/discord_updates/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: ./workshop/discord_updates
+        run: npm ci || npm install
+
+      - name: Run Main Script
+        working-directory: ./workshop/discord_updates
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node main.js
