@@ -512,9 +512,9 @@ async function main() {
 
   console.log("Asking Groq for ANI...");
   const incidents = await analyzeANI(aniSections);
-  
-  console.log("Waiting 60 seconds to avoid rate limits...");
-  await new Promise((r) => setTimeout(r, 60000));
+
+  console.log("Waiting 10 seconds to avoid rate limits...");
+  await new Promise((r) => setTimeout(r, 10000));
 
   console.log("Asking Groq for USR...");
   const requests = await analyzeUSR(usrSections);
