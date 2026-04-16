@@ -32,8 +32,8 @@ function flatten_replies(replies, flat_list = []) {
   if (!replies) return flat_list;
   for (const r of replies) {
     let txt = clean_html(r.html);
-    if (txt.length > 500) {
-      txt = txt.substring(0, 500) + "... [TRUNCATED]";
+    if (txt.length > 600) {
+      txt = txt.substring(0, 600) + "...";
     }
     flat_list.push({ author: r.author, text: txt });
     if (r.replies) flatten_replies(r.replies, flat_list);
