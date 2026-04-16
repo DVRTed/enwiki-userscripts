@@ -2,12 +2,11 @@
 adds a button at the top of user talk pages that, when clicked,
 gets rid of all the clutter, retaining only the ACTUAL talk sections and the table of contents;
 
-this fixes the Reply option in many talk pages that are cluttered with wrapper elements.
 also fixes the talk messages getting hidden behind "about this page" on mobile view.
 */
 
 /* global mw, $ */
-mw.loader.using(["mediawiki.ui.button"]).then(() => {
+mw.loader.using("mediawiki.ui.button").then(() => {
   if (mw.config.get("wgNamespaceNumber") !== 3) return;
   const main_wrapper = $("#mw-content-text .mw-parser-output");
 

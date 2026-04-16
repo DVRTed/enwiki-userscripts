@@ -1,6 +1,7 @@
 import "dotenv/config";
 import Groq from "groq-sdk";
 import sharp from "sharp";
+import { fetch_talk_threads } from "./parse_talk.js";
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 const GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -10,77 +11,6 @@ const PAGES = {
   ANI: "Wikipedia:Administrators' noticeboard/Incidents",
   USR: "Wikipedia:User scripts/Requests",
 };
-
-async function fetchWikiPage(title) {
-  const url =
-    "https://en.wikipedia.org/w/api.php?" +
-    new URLSearchParams({
-      action: "query",
-      prop: "revisions",
-      rvprop: "content",
-      rvslots: "main",
-      titles: title,
-      format: "json",
-      formatversion: "2",
-    });
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "WikiDiscordBot/1.0 (personal project -- [[en:User:DVRTed]])",
-    },
-  });
-  const data = await res.json();
-  const page = data.query.pages[0];
-  if (page.missing) throw new Error(`Page not found: ${title}`);
-  if (!page.revisions?.length)
-    throw new Error(`No revisions returned for: ${title}`);
-  return page.revisions[0].slots.main.content;
-}
-
-function parseSections(wikitext) {
-  const lines = wikitext.split("\n");
-  const sections = [];
-  let current = null;
-  for (const line of lines) {
-    const h2 = line.match(/^==\s*(.+?)\s*==$/);
-    const h3 = line.match(/^===\s*(.+?)\s*===$/);
-    const heading = h2 || h3;
-    if (heading) {
-      if (current) sections.push(current);
-      current = { title: heading[1], level: h2 ? 2 : 3, body: "" };
-    } else if (current) {
-      current.body += line + "\n";
-    }
-  }
-  if (current) sections.push(current);
-  return sections;
-}
-
-function stripMarkup(text) {
-  if (!text) return "";
-
-  let s = text.replace(/<ref(?:[^>]*\/>|[^>]*>.*?<\/ref>)/gis, "");
-  s = s.replace(/<[^>]+>/g, "").replace(/<!--.*?-->/gs, "");
-
-  let prev;
-  do {
-    prev = s;
-    s = s.replace(/\{\|[\s\S]*?\|\}/g, "");
-  } while (s !== prev);
-
-  do {
-    prev = s;
-    s = s.replace(/\{\{[^{}]*\}\}/gs, "");
-  } while (s !== prev);
-
-  return s
-    .replace(/\[\[(?:File|Image):[^\]]+\]\]/gi, "")
-    .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1")
-    .replace(/\[https?:\/\/[^\s\]]+(?:\s+([^\]]+))?\]/gi, (m, p1) => p1 || "")
-    .replace(/'{2,5}/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
 
 // ── Groq ──────────────────────────────────────────────────────────────────────
 async function callGroq(prompt, maxTokens = 1500) {
@@ -93,12 +23,13 @@ async function callGroq(prompt, maxTokens = 1500) {
   return JSON.parse(res.choices[0].message.content);
 }
 
-async function analyzeANI(sections) {
+async function analyzeANI(threads) {
   let result = [];
   let currentChars = 0;
   const maxChars = 32000;
-  for (let i = sections.length - 1; i >= 0; i--) {
-    const text = `### ${sections[i].title}\n${stripMarkup(sections[i].body)}`;
+  for (let i = threads.length - 1; i >= 0; i--) {
+    const commentsText = threads[i].comments.map((c) => `${c.author}: ${c.text}`).join("\n");
+    const text = `### ${threads[i].title}\n${commentsText}`;
     if (currentChars + text.length > maxChars) {
       if (result.length === 0) {
         result.unshift(text.substring(0, maxChars) + "\n...[TRUNCATED]");
@@ -134,12 +65,13 @@ ${trimmed}`.trim(),
   return incidents;
 }
 
-async function analyzeUSR(sections) {
+async function analyzeUSR(threads) {
   let result = [];
   let currentChars = 0;
   const maxChars = 32000;
-  for (let i = sections.length - 1; i >= 0; i--) {
-    const text = `### ${sections[i].title}\n${stripMarkup(sections[i].body)}`;
+  for (let i = threads.length - 1; i >= 0; i--) {
+    const commentsText = threads[i].comments.map((c) => `${c.author}: ${c.text}`).join("\n");
+    const text = `### ${threads[i].title}\n${commentsText}`;
     if (currentChars + text.length > maxChars) {
       if (result.length === 0) {
         result.unshift(text.substring(0, maxChars) + "\n...[TRUNCATED]");
@@ -497,33 +429,30 @@ async function sendToDiscord(aniBuffer, usrBuffer) {
 async function main() {
   if (!DISCORD_WEBHOOK_URL) throw new Error("Missing env: DISCORD_WEBHOOK_URL");
 
-  console.log("Fetching Wikipedia pages...");
-  const [aniRaw, usrRaw] = await Promise.all([
-    fetchWikiPage(PAGES.ANI),
-    fetchWikiPage(PAGES.USR),
+  console.log("Fetching Wikipedia pages with DiscussionTools...");
+  const [aniThreads, usrThreads] = await Promise.all([
+    fetch_talk_threads(PAGES.ANI),
+    fetch_talk_threads(PAGES.USR),
   ]);
 
-  console.log("Parsing sections...");
-  const aniSections = parseSections(aniRaw);
-  const usrSections = parseSections(usrRaw);
   console.log(
-    `ANI: ${aniSections.length} sections | USR: ${usrSections.length} sections`
+    `ANI: ${aniThreads.length} threads | USR: ${usrThreads.length} threads`
   );
 
   console.log("Asking Groq for ANI...");
-  const incidents = await analyzeANI(aniSections);
+  const incidents = await analyzeANI(aniThreads);
 
   console.log("Waiting 10 seconds to avoid rate limits...");
   await new Promise((r) => setTimeout(r, 10000));
 
   console.log("Asking Groq for USR...");
-  const requests = await analyzeUSR(usrSections);
-  console.log(`Got ${incidents.length} incidents, ${requests.length} requests`);
+  const requests = await analyzeUSR(usrThreads);
+  console.log(`Got ${incidents?.length || 0} incidents, ${requests?.length || 0} requests`);
 
   console.log("Generating images...");
   const [aniImage, usrImage] = await Promise.all([
-    generateANIImage(incidents),
-    generateUSRImage(requests),
+    generateANIImage(incidents || []),
+    generateUSRImage(requests || []),
   ]);
 
   console.log("Sending to Discord...");
