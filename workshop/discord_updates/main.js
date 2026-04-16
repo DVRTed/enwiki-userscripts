@@ -31,39 +31,43 @@ function compileThreadsForPrompt(threads, maxCommentsPerThread) {
 
   for (let i = threads.length - 1; i >= 0; i--) {
     let threadComments = threads[i].comments;
-    
+
     if (threadComments.length > maxCommentsPerThread) {
       const keepHalf = Math.floor(maxCommentsPerThread / 2);
       threadComments = [
         ...threadComments.slice(0, keepHalf),
         {
           author: "System",
-          text: `...[${threadComments.length - maxCommentsPerThread} comments collapsed]...`,
+          text: `...[${
+            threadComments.length - maxCommentsPerThread
+          } comments collapsed]...`,
         },
         ...threadComments.slice(-keepHalf),
       ];
     }
-    
-    const commentsText = threadComments.map((c) => `${c.author}: ${c.text}`).join("\n");
+
+    const commentsText = threadComments
+      .map((c) => `${c.author}: ${c.text}`)
+      .join("\n");
     const text = `### ${threads[i].title}\n${commentsText}`;
-    
+
     if (currentChars + text.length > MAX_INPUT_CHARS) {
       if (result.length === 0) {
         result.unshift(text.substring(0, MAX_INPUT_CHARS) + "\n...[TRUNCATED]");
       }
       break;
     }
-    
+
     result.unshift(text);
     currentChars += text.length;
   }
-  
+
   return result.join("\n\n---\n\n").trim();
 }
 
 async function analyzeANI(threads) {
-  const promptText = compileThreadsForPrompt(threads, 8);
-  
+  const promptText = compileThreadsForPrompt(threads, 10);
+
   const { incidents } = await callGroq(`
 You are a Wikipedia drama analyst reviewing WP:ANI sections.
 
@@ -86,9 +90,9 @@ ${promptText}`);
 }
 
 async function analyzeUSR(threads) {
-  const promptText = compileThreadsForPrompt(threads, 5);
+  const promptText = compileThreadsForPrompt(threads, 10);
   console.log(`Sending USR prompt with length ${promptText.length}`);
-  
+
   const { requests } = await callGroq(`
 You are reviewing WP:US/R (Wikipedia:User scripts/Requests).
 
@@ -107,7 +111,7 @@ Each item:
 
 SECTIONS:
 ${promptText}`);
-  
+
   console.log("called for usr");
   return requests;
 }
@@ -191,7 +195,9 @@ function dramaBar(score, x, y) {
   return [1, 2, 3]
     .map(
       (n, i) =>
-        `<rect x="${x + i * 32}" y="${y - 8}" width="24" height="12" rx="6" fill="${
+        `<rect x="${x + i * 32}" y="${
+          y - 8
+        }" width="24" height="12" rx="6" fill="${
           n <= score ? "#ef4444" : "#27272a"
         }"/>`
     )
@@ -204,8 +210,12 @@ function statusBadge(status, x, y) {
   const label = ignored ? "IGNORED" : "PARTIAL";
   const bw = 120;
   return `
-    <rect x="${x}" y="${y - 24}" width="${bw}" height="36" rx="18" fill="${color}1A" stroke="${color}4D" stroke-width="2"/>
-    <text x="${x + bw / 2}" y="${y + 2}" class="meta" style="font-size: 14px; font-weight: 600; fill: ${color}; letter-spacing: 1.5px" text-anchor="middle">${label}</text>`;
+    <rect x="${x}" y="${
+    y - 24
+  }" width="${bw}" height="36" rx="18" fill="${color}1A" stroke="${color}4D" stroke-width="2"/>
+    <text x="${x + bw / 2}" y="${
+    y + 2
+  }" class="meta" style="font-size: 14px; font-weight: 600; fill: ${color}; letter-spacing: 1.5px" text-anchor="middle">${label}</text>`;
 }
 
 async function generateANIImage(incidents) {
@@ -268,20 +278,34 @@ async function generateANIImage(incidents) {
         );
 
       return `
-    <rect x="${PAD}" y="${cy}" width="${IW}" height="${card.cardH}" rx="20" fill="#09090b" filter="url(#shadow)"/>
-    <rect x="${PAD}" y="${cy}" width="${IW}" height="${card.cardH}" rx="20" fill="url(#cardGrad)" stroke="url(#cardBorder)" stroke-width="2"/>
-    <rect x="${PAD}" y="${cy}" width="8" height="${card.cardH}" rx="4" fill="#ef4444"/>
+    <rect x="${PAD}" y="${cy}" width="${IW}" height="${
+        card.cardH
+      }" rx="20" fill="#09090b" filter="url(#shadow)"/>
+    <rect x="${PAD}" y="${cy}" width="${IW}" height="${
+        card.cardH
+      }" rx="20" fill="url(#cardGrad)" stroke="url(#cardBorder)" stroke-width="2"/>
+    <rect x="${PAD}" y="${cy}" width="8" height="${
+        card.cardH
+      }" rx="4" fill="#ef4444"/>
     ${textLines(card.titleLines, PAD + 48, titleY, TITLE_LH, "card-title")}
     ${
       card.parts
-        ? `<text x="${PAD + 48}" y="${partsY}" class="meta" style="fill: #9ca3af; font-weight: 500">Participants: ${esc(card.parts)}</text>`
+        ? `<text x="${
+            PAD + 48
+          }" y="${partsY}" class="meta" style="fill: #9ca3af; font-weight: 500">Participants: ${esc(
+            card.parts
+          )}</text>`
         : ""
     }
     ${textLines(card.summaryLines, PAD + 48, descStartY, DESC_LH, "card-desc")}
     ${dramaBar(card.dramaScore, PAD + 48, dotsY)}
     ${
       hasOut
-        ? `<text x="${pax}" y="${dotsY + 6}" class="meta" style="fill: #f87171; font-weight: 600">Outcome: ${esc(txtOut)}</text>`
+        ? `<text x="${pax}" y="${
+            dotsY + 6
+          }" class="meta" style="fill: #f87171; font-weight: 600">Outcome: ${esc(
+            txtOut
+          )}</text>`
         : ""
     }
     `;
@@ -296,7 +320,9 @@ async function generateANIImage(incidents) {
   <text x="${PAD}" y="152" class="header-sub">Wikipedia Administrators' Noticeboard/Incidents  •  ${esc(
     new Date().toISOString().replace("T", " ").substring(0, 16) + " UTC"
   )}</text>
-  <rect x="${PAD}" y="192" width="${W - PAD * 2}" height="1" fill="url(#lineGrad)"/>
+  <rect x="${PAD}" y="192" width="${
+    W - PAD * 2
+  }" height="1" fill="url(#lineGrad)"/>
   ${cardSvgs}
 </svg>`;
 
@@ -333,15 +359,25 @@ async function generateUSRImage(requests) {
       const badgeX = W - PAD - 120 - 48;
 
       return `
-    <rect x="${PAD}" y="${ry}" width="${IW}" height="${row.rowH}" rx="20" fill="#09090b" filter="url(#shadow)"/>
-    <rect x="${PAD}" y="${ry}" width="${IW}" height="${row.rowH}" rx="20" fill="url(#cardGrad)" stroke="url(#cardBorder)" stroke-width="2"/>
-    <rect x="${PAD}" y="${ry}" width="8" height="${row.rowH}" rx="4" fill="#eab308"/>
+    <rect x="${PAD}" y="${ry}" width="${IW}" height="${
+        row.rowH
+      }" rx="20" fill="#09090b" filter="url(#shadow)"/>
+    <rect x="${PAD}" y="${ry}" width="${IW}" height="${
+        row.rowH
+      }" rx="20" fill="url(#cardGrad)" stroke="url(#cardBorder)" stroke-width="2"/>
+    <rect x="${PAD}" y="${ry}" width="8" height="${
+        row.rowH
+      }" rx="4" fill="#eab308"/>
     ${textLines(row.titleLines, PAD + 48, titleY, TITLE_LH, "card-title")}
     ${statusBadge(row.status, badgeX, titleY)}
     ${textLines(row.descLines, PAD + 48, descY, DESC_LH, "card-desc")}
     ${
       row.difficulty
-        ? `<text x="${PAD + 48}" y="${metaY}" class="meta" style="font-weight: 500">Complexity: ${esc(row.difficulty)}  •  Effort: ${esc(row.timeEstimate)}</text>`
+        ? `<text x="${
+            PAD + 48
+          }" y="${metaY}" class="meta" style="font-weight: 500">Complexity: ${esc(
+            row.difficulty
+          )}  •  Effort: ${esc(row.timeEstimate)}</text>`
         : ""
     }`;
     })
@@ -355,7 +391,9 @@ async function generateUSRImage(requests) {
   <text x="${PAD}" y="152" class="header-sub">Wikipedia:User scripts/Requests  •  ${esc(
     new Date().toISOString().replace("T", " ").substring(0, 16) + " UTC"
   )}</text>
-  <rect x="${PAD}" y="192" width="${W - PAD * 2}" height="1" fill="url(#lineGrad)"/>
+  <rect x="${PAD}" y="192" width="${
+    W - PAD * 2
+  }" height="1" fill="url(#lineGrad)"/>
   ${rowSvgs}
 </svg>`;
 
@@ -378,7 +416,9 @@ async function sendToDiscord(aniBuffer, usrBuffer) {
     });
     if (!res.ok) {
       const text = await res.text();
-      console.error(`Discord webhook failed for ${name}: ${res.status} - ${text}`);
+      console.error(
+        `Discord webhook failed for ${name}: ${res.status} - ${text}`
+      );
     } else {
       console.log(`Sent ${name} to Discord successfully.`);
     }
@@ -396,7 +436,9 @@ async function main() {
     fetch_talk_threads(PAGES.USR),
   ]);
 
-  console.log(`ANI: ${aniThreads.length} threads | USR: ${usrThreads.length} threads`);
+  console.log(
+    `ANI: ${aniThreads.length} threads | USR: ${usrThreads.length} threads`
+  );
 
   console.log("Asking Groq for ANI...");
   const incidents = await analyzeANI(aniThreads);
@@ -406,7 +448,9 @@ async function main() {
 
   console.log("Asking Groq for USR...");
   const requests = await analyzeUSR(usrThreads);
-  console.log(`Got ${incidents?.length || 0} incidents, ${requests?.length || 0} requests`);
+  console.log(
+    `Got ${incidents?.length || 0} incidents, ${requests?.length || 0} requests`
+  );
 
   console.log("Generating images...");
   const [aniImage, usrImage] = await Promise.all([
