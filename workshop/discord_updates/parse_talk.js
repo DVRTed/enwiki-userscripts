@@ -7,7 +7,10 @@ async function fetch_dt_data(page) {
     `&threaditemsflags=excludesignatures&formatversion=2`;
 
   const res = await fetch(url, {
-    headers: { "User-Agent": "TalkPageParser/1.0" },
+    headers: {
+      "User-Agent":
+        "TalkPageParser/1.0 (personal project -- [[en:User:DVRTed]])",
+    },
   });
 
   try {
