@@ -254,7 +254,7 @@ $(async () => {
               this.step = 2;
               const page_title = DEBUG_MODE
                 ? DEBUG_PAGE
-                : `Wikipedia:WikiProject AI Cleanup/Noticeboard/${this.current_date} ${this.normalized_username}`;
+                : `Wikipedia:AI noticeboard/${this.current_date} ${this.normalized_username}`;
               this.target_page_title = page_title;
               this.target_page_url = mw.util.getUrl(page_title);
             }
@@ -775,7 +775,7 @@ ${diff_dialog}
   // if we're on an AINB tracking subpage, or the debug page,
   // enable editing rows
   if (
-    wgPageName.startsWith("Wikipedia:WikiProject_AI_Cleanup/Noticeboard/") ||
+    wgPageName.startsWith("Wikipedia:AI_noticeboard/") ||
     wgPageName === DEBUG_PAGE
   ) {
     init_row_editing();
