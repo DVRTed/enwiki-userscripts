@@ -432,6 +432,17 @@
   border-color: #999;
 }
 
+.skin-theme-clientpref-night .ainb-edit-btn {
+  border-color: #4a4a4a;
+  background: #363636;
+  color: #fff;
+}
+
+.skin-theme-clientpref-night .ainb-edit-btn:hover {
+  background: #4a4a4a;
+  border-color: #7aa7f0;
+}
+
 .ainb-form-field {
   margin: 5px 0;
 }
