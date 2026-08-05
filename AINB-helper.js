@@ -47,7 +47,6 @@ $(async () => {
       CdxButton,
       CdxTextInput,
       CdxDialog,
-      CdxAccordion,
       CdxCheckbox,
       CdxProgressBar,
     } = require("@wikimedia/codex");
@@ -58,7 +57,6 @@ $(async () => {
         CdxButton,
         CdxTextInput,
         CdxDialog,
-        CdxAccordion,
         CdxCheckbox,
         CdxProgressBar,
       },
@@ -75,6 +73,9 @@ $(async () => {
           edit_count: 0,
           error: "",
           article_groups: [],
+          article_search: "",
+          sort_mode: "recent",
+          selected_article_title: "",
           creating: false,
           create_error: "",
           target_page_title: "",
@@ -89,17 +90,18 @@ $(async () => {
           if (this.step === 2) return "Select diffs to include";
           return "Page Created";
         },
-        dialog_subtitle() {
-          if (this.step === 2) {
-            return `User:${this.normalized_username} · ${this.edit_count} edits (${this.article_groups.length} articles)`;
-          }
-          return "";
-        },
         total_selected_diffs() {
           return this.article_groups.reduce(
             (sum, group) => sum + group.selected_count,
-            0
+            0,
           );
+        },
+        total_selected() {
+          return this.article_groups.filter((group) => group.selected_count > 0)
+            .length;
+        },
+        total_groups() {
+          return this.article_groups.length;
         },
         all_selected() {
           return (
@@ -109,7 +111,7 @@ $(async () => {
         },
         some_selected() {
           return this.article_groups.some(
-            (group) => group.some_selected || group.all_selected
+            (group) => group.some_selected || group.all_selected,
           );
         },
         current_date() {
@@ -123,24 +125,60 @@ $(async () => {
             if (!val) this.viewing_diff_edit = null;
           },
         },
+        filtered_sorted_groups() {
+          let groups = this.article_groups;
+          const query = this.article_search.trim().toLowerCase();
+
+          if (query) {
+            groups = groups.filter((g) =>
+              g.title.toLowerCase().includes(query),
+            );
+          }
+
+          groups = [...groups];
+
+          if (this.sort_mode === "edits") {
+            groups.sort((a, b) => b.edits.length - a.edits.length);
+          } else if (this.sort_mode === "alpha") {
+            groups.sort((a, b) => a.title.localeCompare(b.title));
+          } else if (this.sort_mode === "recent") {
+            groups.sort(
+              (a, b) =>
+                new Date(b.edits[0].timestamp) - new Date(a.edits[0].timestamp),
+            );
+          }
+
+          return groups;
+        },
+        selected_group() {
+          return (
+            this.article_groups.find(
+              (g) => g.title === this.selected_article_title,
+            ) || null
+          );
+        },
       },
       methods: {
-        handle_accordion_expand(group, index) {
-          if (group.expanded) {
-            nextTick(() => {
-              const $content = $(`.ainb-article-card:eq(${index}) .ainb-diffs`);
-              if ($content.length) {
-                mw.hook("wikipage.content").fire($content);
-              }
-            });
-          }
-        },
         handle_dialog_close() {
           if (current_app) {
             current_app.unmount();
             current_app = null;
             document.getElementById(APP_ID)?.remove();
           }
+        },
+
+        fire_hook() {
+          nextTick(() => {
+            const $content = $(".ainb-revisions-table");
+            if ($content.length) {
+              mw.hook("wikipage.content").fire($content);
+            }
+          });
+        },
+
+        select_article(title) {
+          this.selected_article_title = title;
+          this.fire_hook();
         },
 
         update_group_selection(group) {
@@ -182,7 +220,7 @@ $(async () => {
             if (edit_count > 20000) {
               if (
                 !confirm(
-                  `User has over 20k edits (${edit_count}). Are you sure you want to continue?`
+                  `User has over 20k edits (${edit_count}). Are you sure you want to continue?`,
                 )
               ) {
                 this.error = "Manually cancelled: User has too many edits.";
@@ -222,7 +260,7 @@ $(async () => {
             } while (continuation);
 
             const valid_edits = edits.filter(
-              (edit) => !edit.tags?.includes("mw-reverted")
+              (edit) => !edit.tags?.includes("mw-reverted"),
             );
             const groups = {};
 
@@ -234,7 +272,6 @@ $(async () => {
                   all_selected: false,
                   some_selected: false,
                   selected_count: 0,
-                  expanded: false,
                 };
               }
               groups[edit.title].edits.push({
@@ -250,13 +287,16 @@ $(async () => {
             this.article_groups = Object.values(groups);
 
             this.article_groups.forEach((group) =>
-              this.update_group_selection(group)
+              this.update_group_selection(group),
             );
 
             if (this.article_groups.length === 0) {
               this.error = "No contributions found in the specified period.";
             } else {
               this.step = 2;
+              const top_article = this.filtered_sorted_groups[0];
+              if (top_article) this.select_article(top_article.title);
+
               const page_title = DEBUG_MODE
                 ? DEBUG_PAGE
                 : `Wikipedia:AI noticeboard/${this.current_date} ${this.normalized_username}`;
@@ -316,8 +356,8 @@ $(async () => {
               .map(
                 (edit) =>
                   `[[Special:Diff/${edit.revid}|(${this.format_bytes(
-                    edit.sizediff
-                  )})]]`
+                    edit.sizediff,
+                  )})]]`,
               )
               .join(" ");
             const edit_count = group.edits.length;
@@ -346,6 +386,18 @@ $(async () => {
         },
         get_diff_url(revid) {
           return mw.util.getUrl(`Special:Diff/${revid}`);
+        },
+        get_article_url(title) {
+          return mw.util.getUrl(title);
+        },
+        get_history_url(title) {
+          return mw.util.getUrl(title, { action: "history" });
+        },
+        get_user_url(username) {
+          return mw.util.getUrl(`User:${username}`);
+        },
+        get_contribs_url(username) {
+          return mw.util.getUrl(`Special:Contributions/${username}`);
         },
         format_bytes(bytes) {
           return (bytes > 0 ? "+" : "") + (bytes || 0);
@@ -432,15 +484,15 @@ $(async () => {
           const status = this.status_options.find(
             (option) =>
               option.value === value ||
-              option.aliases?.includes(value.toLowerCase())
+              option.aliases?.includes(value.toLowerCase()),
           );
-          return status.value || "";
+          return status?.value || "";
         },
 
         get_article_row_regex(escaped_article) {
           return new RegExp(
             `\\{\\{AIC article row\\s*\\|\\s*(?:article=)?\\s*${escaped_article}\\s*(?:\\|\\s*(?:status=)?\\s*([^|}]*))?(?:\\s*\\|\\s*(?:notes=)?\\s*([^}]*))?\\s*\\}\\}`,
-            "i"
+            "i",
           );
         },
 
@@ -520,7 +572,7 @@ $(async () => {
     "#",
     "New AINB tracking",
     "t-ainb-tracking",
-    "Generate tracking subpage for AINB"
+    "Generate tracking subpage for AINB",
   );
 
   $(portlet_link).on("click", function (e) {
@@ -556,53 +608,104 @@ $(async () => {
   `;
 
     const step2 = `
-    <div v-if="step === 2" class="ainb-step">
-      <div class="ainb-controls">
-        <cdx-checkbox :model-value="all_selected" :indeterminate="some_selected && !all_selected"
-          @update:model-value="toggle_all">Select All</cdx-checkbox>
-        <span><b>{{ total_selected_diffs }} diff(s)</b> selected</span>
-      </div>
-
-      <div class="ainb-list">
-        <div v-for="group in article_groups" :key="group.title" class="ainb-article-card">
-          <div class="ainb-article-header">
-            <cdx-checkbox :model-value="group.all_selected" 
-            :indeterminate="group.some_selected && !group.all_selected" 
-            @update:model-value="toggle_article(group)">
-              <strong>{{ group.title }}</strong>
-              <span class="ainb-count">({{ group.selected_count }}/{{ group.edits.length }} selected)</span>
-            </cdx-checkbox>
-          </div>
-
-          <cdx-accordion v-model="group.expanded" @update:model-value="handle_accordion_expand(group, article_groups.indexOf(group))">
-            <template #title><span>See revisions</span></template>
-            <div class="ainb-diffs" v-if="group.expanded">
-              <div v-for="edit in group.edits" :key="edit.revid" class="ainb-diff-item" :class="{ 'ainb-diff-item-selected': edit.selected }">
-                <div class="ainb-diff-actions">
-                  <cdx-checkbox 
-                    v-model="edit.selected" 
-                    @update:model-value="update_group_selection(group)"
-                    class="ainb-diff-checkbox"
-                  ></cdx-checkbox>
-                  <cdx-button @click="show_diff_popup(edit)" size="small">Diff popup</cdx-button>
-                  <a :href="get_diff_url(edit.revid)" target="_blank">diff link</a>
-                </div>
-                <div class="ainb-diff-metadata">
-                    <span class="ainb-comment" :title="edit.comment">
-                      ({{ edit.comment ? truncate(edit.comment, 60) : 'No edit summary' }})
-                    </span>
-                    <span :class="['ainb-diff-size', get_size_class(edit.sizediff)]">
-                      {{ format_bytes(edit.sizediff) }}
-                    </span>
-                    <span class="ainb-time">{{ edit.timestamp }}</span>
-                  
-                </div>
-              </div>
-            </div>
-          </cdx-accordion>
-        </div>
-      </div>
+<div v-if="step === 2" class="ainb-step2">
+    <div class="ainb-step2-subtitle">
+        <a :href="get_user_url(normalized_username)" target="_blank">User:{{ normalized_username }}</a>
+        &middot; <a :href="get_contribs_url(normalized_username)" target="_blank">(contrib)</a>
+        &middot; {{ edit_count }} edit(s) across {{ article_groups.length }} article(s)
     </div>
+    <div class="ainb-step2-toolbar">
+        <cdx-checkbox :model-value="all_selected" :indeterminate="some_selected && !all_selected"
+            @update:model-value="toggle_all">Select all</cdx-checkbox>
+        <span class="ainb-total-badge"><b>{{ total_selected }}</b> of {{ total_groups }} articles selected</span>
+    </div>
+
+    <div class="ainb-step2-layout">
+        <div class="ainb-article-list">
+            <div class="ainb-article-list-controls">
+                <cdx-text-input v-model="article_search" placeholder="Filter articles..."
+                    class="ainb-article-search"></cdx-text-input>
+                <div class="ainb-sort-toggle">
+                    <button type="button" :class="{ active: sort_mode === 'edits' }" @click="sort_mode = 'edits'">Most
+                        edits</button>
+                    <button type="button" :class="{ active: sort_mode === 'alpha' }"
+                        @click="sort_mode = 'alpha'">A-Z</button>
+                    <button type="button" :class="{ active: sort_mode === 'recent' }"
+                        @click="sort_mode = 'recent'">Recent</button>
+                </div>
+            </div>
+
+            <ul class="ainb-article-items">
+                <li v-for="group in filtered_sorted_groups" :key="group.title" class="ainb-article-item"
+                    :class="{ 'ainb-article-item-active': group.title === selected_article_title, 'ainb-article-item-picked': group.selected_count > 0 }"
+                    @click="select_article(group.title)">
+                    <cdx-checkbox :model-value="group.all_selected"
+                        :indeterminate="group.some_selected && !group.all_selected"
+                        @update:model-value="toggle_article(group)" @click.stop></cdx-checkbox>
+                    <div class="ainb-article-item-info">
+                        <div class="ainb-article-item-title">{{ group.title }}</div>
+                        <div class="ainb-article-item-meta">
+                            <span>{{ group.edits.length }} edit(s)</span>
+                            <span v-if="group.selected_count > 0" class="ainb-article-item-badge">&middot; selected {{
+                                group.selected_count }}/{{ group.edits.length }}</span>
+                        </div>
+                    </div>
+                </li>
+                <li v-if="filtered_sorted_groups.length === 0" class="ainb-article-empty">No articles match "{{
+                    article_search }}"</li>
+            </ul>
+        </div>
+
+        <div class="ainb-revisions-panel">
+            <template v-if="selected_group">
+                <div class="ainb-revisions-header">
+                    <div>
+                        <div class="ainb-revisions-title">
+                            <a :href="get_article_url(selected_group.title)" target="_blank">{{ selected_group.title
+                                }}</a>
+                            <a :href="get_history_url(selected_group.title)" target="_blank" class="ainb-history-link">(hist)</a>
+                        </div>
+
+                        <div class="ainb-revisions-subtitle">
+                            {{ selected_group.edits.length }} edit(s) by {{normalized_username}} 
+                        </div>
+                    </div>
+                </div>
+
+                <table class="ainb-revisions-table">
+                    <thead>
+                        <tr>
+                            <th class="ainb-col-cb"></th>
+                            <th class="ainb-col-actions">Diff</th>
+                            <th class="ainb-col-time">Date</th>
+                            <th class="ainb-col-size">Size</th>
+                            <th class="ainb-col-summary">Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="edit in selected_group.edits" :key="edit.revid" class="ainb-diff-row"
+                            :class="{ 'ainb-diff-row-selected': edit.selected }">
+                            <td class="ainb-col-cb">
+                                <cdx-checkbox v-model="edit.selected"
+                                    @update:model-value="update_group_selection(selected_group)"></cdx-checkbox>
+                            </td>
+                            <td class="ainb-col-actions">
+                                <cdx-button @click="show_diff_popup(edit)" size="small">View</cdx-button>
+                                <a :href="get_diff_url(edit.revid)" target="_blank">↗</a>
+                            </td>
+                            <td class="ainb-col-time">{{ edit.timestamp }}</td>
+                            <td :class="['ainb-col-size', get_size_class(edit.sizediff)]">{{ format_bytes(edit.sizediff)
+                                }}</td>
+                            <td class="ainb-col-summary" :title="edit.comment">{{ edit.comment ? truncate(edit.comment,
+                                80) : 'No edit summary' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </template>
+            <div v-else class="ainb-revisions-empty">Select an article on the left to view its revisions.</div>
+        </div>
+    </div>
+</div>
   `;
 
     const diff_dialog = `
@@ -673,7 +776,7 @@ $(async () => {
     return `
 <div>
 <cdx-dialog class="ainb-helper" v-model:open="is_open" 
-:title="dialog_title" :use-close-button="true" :subtitle="dialog_subtitle"
+:title="dialog_title" :use-close-button="true"
 @update:open="handle_dialog_close">
   ${step1}
   ${step2}
@@ -738,9 +841,9 @@ ${diff_dialog}
   // end template gen-
 
   // for nicely formatted CSS, see [[User:DVRTed/AINB-helper.css]]
-  mw.util.addCSS(
-    ` .ainb-helper .cdx-checkbox, .ainb-helper .cdx-label {margin: 0 !important;}.ainb-helper.cdx-dialog__window, .ainb-helper .cdx-dialog__window, .ainb-helper, .ainb-diff-dialog.cdx-dialog__window, .ainb-diff-dialog .cdx-dialog__window, .ainb-diff-dialog {width: 800px !important;max-width: 90vw !important;}.ainb-dialog-footer .cdx-button {margin: 0 4px;}.ainb-dialog-footer {display: flex;align-items: center;justify-content: space-between;}.ainb-step {padding: 1em 0;max-height: 65vh;overflow-y: auto;}.ainb-subpage-info {padding: 0.75em;background: #f8f9fa;border-left: 3px solid #36c;overflow: hidden;}.ainb-subpage-info strong {font-family: monospace;}.ainb-footer-buttons {min-width: 200px;}.ainb-error {color: #d33;margin-top: 0.5em;padding: 0.5em;background: #fee;border-radius: 2px;}.ainb-loading {text-align: center;}.ainb-controls {display: flex;justify-content: space-between;align-items: center;padding: 0.75em;background: #fbfbfb;margin-bottom: 1em;}.ainb-article-card {border: 2px solid #f7f7f7;border-radius: 4px;margin: 20px 0;overflow: hidden;}.ainb-article-header {padding: 0.75em 1em;background: #fbfbfb;border-bottom: 2px solid #d3d3d3;}.ainb-article-title-row {display: flex;align-items: center;justify-content: space-between;}.ainb-count {color: #858585;font-size: 0.9em;margin: 0 4px;font-weight: normal;}.ainb-diffs {padding: 1em;}.ainb-diff-item {border: 1px solid #eaecf0;border-radius: 8px;padding: 12px;margin-bottom: 12px;background: #fff;transition: all 0.2s ease;box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);}.ainb-diff-item-selected {border-color: #a4c4f0;box-shadow: 0 2px 4px rgba(51, 102, 204, 0.15);background-color: #f8fbff;}.ainb-diff-metadata {display: flex;align-items: center;}.ainb-diff-actions {display: flex;align-items: center;gap: 12px;margin-bottom: 8px;padding-bottom: 8px;border-bottom: 1px solid #f0f0f0;font-size: 0.9em;}.ainb-diff-size {font-weight: 600;margin: 0 8px;font-family: monospace;font-size: 1.1em;padding: 2px 6px;border-radius: 4px;background: #f8f9fa;}.ainb-pos {color: #027202;}.ainb-neg {color: #830101;}.ainb-neu {color: #4b4f53;}.ainb-time {color: #72777d;font-size: 0.85em;margin-left: auto;white-space: nowrap;}.ainb-comment {color: #202122;font-weight: 500;margin-left: 8px;margin-right: 8px;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;display: inline-block;max-width: 60%;vertical-align: middle;}.ainb-diff-popup-overlay {position: fixed;top: 0;left: 0;width: 100vw;height: 100vh;background: rgba(0, 0, 0, 0.5);display: flex;justify-content: center;align-items: center;z-index: 1000;}.ainb-diff-popup-content {background: #fff;width: 85vw;max-width: 1000px;height: 80vh;display: flex;flex-direction: column;border-radius: 8px;box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);overflow: hidden;}.skin-theme-clientpref-night .ainb-diff-popup-content, .skin-theme-clientpref-night {background: #2a2a2a;color: #fff;}.ainb-diff-loading {padding: 1em;color: #72777d;font-style: italic;text-align: center;}.ainb-diff-content {padding: 0.5em;background: #fff;overflow-x: auto;display: flex;justify-content: center;}.ainb-diff-content .diff {max-width: 100%;border-collapse: collapse;font-size: 0.85em;font-family: monospace;table-layout: fixed;}.ainb-diff-content .diff td {padding: 2px 6px;vertical-align: top;word-wrap: break-word;overflow-wrap: anywhere;}.ainb-diff-content .diff-marker {width: 2%;padding: 0 2px;text-align: right;}.ainb-diff-content .diff-context, .ainb-diff-content .diff-addedline, .ainb-diff-content .diff-deletedline {width: 48%;}.ainb-diff-content .diff-addedline {background: #7ef09c;}.ainb-diff-content .diff-deletedline {background: #faa1ac;}.ainb-diff-content .diff-context {background: #f8f9fa;color: #72777d;}.ainb-preview {background: #f8f9fa;padding: 1em;border: 1px solid #eaecf0;border-radius: 2px;max-height: 300px;overflow: auto;font-size: 0.85em;white-space: pre-wrap;}.ainb-date-field {margin-top: 1em;}.ainb-date-field label {display: block;font-weight: 600;margin-bottom: 4px;}.ainb-date-input {padding: 4px 6px;border: 1px solid #a2a9b1;border-radius: 2px;font-size: 1em;}.ainb-date-hint {color: #72777d;font-size: 0.85em;margin: 4px 0 0 0;}.skin-theme-clientpref-night .ainb-date-input {background: #2a2a2a;color: #fff;border-color: #4a4a4a;}.skin-theme-clientpref-night .ainb-controls, .skin-theme-clientpref-night .ainb-article-header, .skin-theme-clientpref-night .ainb-accordion-header, .skin-theme-clientpref-night .ainb-diff-content, .skin-theme-clientpref-night .ainb-subpage-info, .skin-theme-clientpref-night .ainb-diff-item {background: #2a2a2a;color: #fff;border-color: #4a4a4a;}.skin-theme-clientpref-night .ainb-diff-size {background: #363636;color: #fff;}.skin-theme-clientpref-night .ainb-diff-actions {border-bottom-color: #4a4a4a;}.skin-theme-clientpref-night .ainb-diff-item-selected {border-color: #36c;background-color: #1a2635;}.skin-theme-clientpref-night .ainb-diff-content .diff-context {background: #363636;color: #fff;}.skin-theme-clientpref-night .ainb-diff-content .diff-deletedline {background: #a51729;color: #fff;}.skin-theme-clientpref-night .ainb-diff-content .diff-addedline {background: #087c26;color: #fff;}.skin-theme-clientpref-night .ainb-accordion-header:hover {background: #606060;}.skin-theme-clientpref-night .ainb-comment {color: #ffffff;font-style: italic;}.ainb-edit-table.cdx-dialog__window, .ainb-edit-table .cdx-dialog__window, .ainb-edit-table {width: 700px !important;max-width: 90vw !important;}.ainb-edit-btn {font-size: 14px;line-height: 1;}.ainb-edit-btn:hover {background: #e8e9ea;border-color: #999;}.ainb-form-field {margin: 5px 0;}`
-  );
+  mw.util.addCSS(`
+.ainb-helper .cdx-checkbox,.ainb-helper .cdx-label{margin:0!important}.ainb-helper.cdx-dialog__window,.ainb-helper .cdx-dialog__window,.ainb-helper,.ainb-diff-dialog.cdx-dialog__window,.ainb-diff-dialog .cdx-dialog__window,.ainb-diff-dialog{width:960px!important;max-width:92vw!important}.ainb-dialog-footer .cdx-button{margin:0 4px}.ainb-dialog-footer{display:flex;align-items:center;justify-content:space-between}.ainb-step{padding:1em 0;max-height:65vh;overflow-y:auto}.ainb-error{color:#d33;margin-top:.5em;padding:.5em;background:#fee;border-radius:2px}.ainb-loading{text-align:center}.ainb-date-field{margin-top:1em}.ainb-date-field label{display:block;font-weight:600;margin-bottom:4px}.ainb-date-input{padding:4px 6px;border:1px solid #a2a9b1;border-radius:2px;font-size:1em}.ainb-date-hint{color:#72777d;font-size:.85em;margin:4px 0 0 0}.ainb-step2{padding:.75em 0}.ainb-step2-subtitle{font-size:.875em;color:#54595d;margin-bottom:12px}.ainb-step2-toolbar{display:flex;align-items:center;justify-content:space-between;padding:.6em .75em;background:#fbfbfb;border:1px solid #eaecf0;border-radius:4px 4px 0 0}.ainb-total-badge{color:#54595d;font-size:.92em}.ainb-total-badge b{color:#202122}.ainb-step2-layout{display:flex;height:55vh;border:1px solid #eaecf0;border-top:none;border-radius:0 0 4px 4px}.ainb-article-list{width:280px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #eaecf0;background:#fbfbfb}.ainb-article-list-controls{padding:.6em;border-bottom:1px solid #eaecf0}.ainb-article-search{width:100%}.ainb-sort-toggle{display:flex;gap:4px;margin-top:6px}.ainb-sort-toggle button{flex:1;font-size:.78em;padding:3px 4px;border:1px solid #c8ccd1;background:#fff;border-radius:2px;cursor:pointer;color:#54595d}.ainb-sort-toggle button:hover{background:#f0f0f0}.ainb-sort-toggle button.active{background:#36c;border-color:#36c;color:#fff}.ainb-article-items{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1}.ainb-article-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;border-left:3px solid #fff0}.ainb-article-item:hover{background:#f0f4fb}.ainb-article-item-active{background:#eaf1fc;border-left-color:#36c}.ainb-article-item-picked .ainb-article-item-title{font-weight:600}.ainb-article-item-info{min-width:0;flex:1}.ainb-article-item-title{font-size:.92em;color:#202122;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ainb-article-item-meta{display:flex;align-items:center;gap:6px;font-size:.78em;color:#72777d;margin-top:2px}.ainb-article-empty{padding:1.5em 1em;text-align:center;color:#72777d;font-size:.9em}.ainb-revisions-panel{flex:1;min-width:0;display:flex;flex-direction:column;overflow:auto}.ainb-revisions-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1em;padding:.75em 1em;border-bottom:1px solid #eaecf0;background:#fff}.ainb-revisions-title{font-weight:700;font-size:1.05em;color:#202122}.ainb-revisions-subtitle{font-size:.85em;color:#72777d;margin-top:2px}.ainb-history-link{font-size:.75em;font-weight:400;margin-left:8px}.ainb-revisions-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#72777d;font-style:italic;padding:2em;text-align:center}.ainb-revisions-table{width:100%;border-collapse:collapse;font-size:.88em}.ainb-revisions-table thead{position:sticky;top:0;background:#fff;z-index:1}.ainb-revisions-table thead th{text-align:left;font-weight:700;padding:8px;border-bottom:1px solid #ccc}.ainb-diff-row{border-bottom:1px solid #eaecf0}.ainb-diff-row:last-child{border-bottom:none}.ainb-diff-row td{padding:8px;vertical-align:middle}.ainb-diff-row:hover{background-color:#f8f9fa}.ainb-diff-row-selected{background-color:#f8fbff}.ainb-col-cb,.ainb-col-actions,.ainb-col-time{width:1%;white-space:nowrap}.ainb-col-actions .cdx-button{margin-right:6px}.ainb-col-size{font-weight:600;font-family:monospace;font-size:.95em;white-space:nowrap;width:1%;text-align:right}.ainb-pos{color:#027202}.ainb-neg{color:#830101}.ainb-neu{color:#4b4f53}.ainb-col-summary{color:#202122;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:1px}.ainb-col-time{color:#72777d;font-size:.9em}.ainb-diff-loading{padding:1em;color:#72777d;font-style:italic;text-align:center}.ainb-diff-content{padding:.5em;background:#fff;overflow-x:auto;display:flex;justify-content:center}.ainb-diff-content .diff{max-width:100%;border-collapse:collapse;font-size:.85em;font-family:monospace;table-layout:fixed}.ainb-diff-content .diff td{padding:2px 6px;vertical-align:top;word-wrap:break-word;overflow-wrap:anywhere}.ainb-diff-content .diff-marker{width:2%;padding:0 2px;text-align:right}.ainb-diff-content .diff-context,.ainb-diff-content .diff-addedline,.ainb-diff-content .diff-deletedline{width:48%}.ainb-diff-content .diff-addedline{background:#7ef09c}.ainb-diff-content .diff-deletedline{background:#faa1ac}.ainb-diff-content .diff-context{background:#f8f9fa;color:#72777d}.ainb-subpage-info{padding:.75em;background:#f8f9fa;border-left:3px solid #36c;overflow:hidden}.ainb-subpage-info strong{font-family:monospace}.ainb-footer-buttons{min-width:200px}.ainb-edit-table .cdx-dialog__window{width:700px!important;max-width:90vw!important}.ainb-edit-btn{font-size:14px;line-height:1;cursor:pointer;border:1px solid #ccc;background:#f8f9fa;padding:2px 6px;border-radius:3px}.ainb-edit-btn:hover{background:#e8e9ea;border-color:#999}.ainb-form-field{margin:5px 0}.skin-theme-clientpref-night .ainb-date-input,.skin-theme-clientpref-night .ainb-step2-toolbar,.skin-theme-clientpref-night .ainb-article-list,.skin-theme-clientpref-night .ainb-article-list-controls,.skin-theme-clientpref-night .ainb-revisions-header,.skin-theme-clientpref-night .ainb-revisions-table thead,.skin-theme-clientpref-night .ainb-subpage-info{background:#2a2a2a;border-color:#4a4a4a}.skin-theme-clientpref-night .ainb-date-input,.skin-theme-clientpref-night .ainb-total-badge,.skin-theme-clientpref-night .ainb-total-badge b,.skin-theme-clientpref-night .ainb-article-item-title,.skin-theme-clientpref-night .ainb-revisions-title,.skin-theme-clientpref-night .ainb-col-summary{color:#fff}.skin-theme-clientpref-night .ainb-step2-subtitle,.skin-theme-clientpref-night .ainb-article-empty,.skin-theme-clientpref-night .ainb-revisions-empty,.skin-theme-clientpref-night .ainb-revisions-subtitle,.skin-theme-clientpref-night .ainb-col-time{color:#ccc}.skin-theme-clientpref-night .ainb-step2-layout,.skin-theme-clientpref-night .ainb-diff-row{border-color:#4a4a4a}.skin-theme-clientpref-night .ainb-article-item{border-bottom-color:#3a3a3a}.skin-theme-clientpref-night .ainb-sort-toggle button{background:#363636;border-color:#4a4a4a;color:#ddd}.skin-theme-clientpref-night .ainb-sort-toggle button.active{background:#36c;border-color:#36c;color:#fff}.skin-theme-clientpref-night .ainb-article-item:hover,.skin-theme-clientpref-night .ainb-diff-row:hover{background:#363636}.skin-theme-clientpref-night .ainb-article-item-active,.skin-theme-clientpref-night .ainb-diff-row-selected{background:#1a2635}.skin-theme-clientpref-night .ainb-article-item-active{border-left-color:#7aa7f0}.skin-theme-clientpref-night .ainb-diff-content .diff-context{background:#363636;color:#fff}.skin-theme-clientpref-night .ainb-diff-content .diff-deletedline{background:#a51729;color:#fff}.skin-theme-clientpref-night .ainb-diff-content .diff-addedline{background:#087c26;color:#fff}
+    `);
 
   function init_row_editing() {
     $('tr[class*="aic-row-"]').each(function () {
@@ -764,14 +867,6 @@ ${diff_dialog}
         .addClass("ainb-edit-btn")
         .text("✎")
         .attr("title", "Edit this row")
-        .css({
-          marginLeft: "8px",
-          cursor: "pointer",
-          border: "1px solid #ccc",
-          background: "#f8f9fa",
-          padding: "2px 6px",
-          borderRadius: "3px",
-        })
         .on("click", (e) => {
           e.preventDefault();
           create_edit_table_app($link.text().trim());
