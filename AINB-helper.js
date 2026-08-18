@@ -646,7 +646,7 @@ $(async () => {
     <div class="ainb-step2-toolbar">
         <cdx-checkbox :model-value="all_selected" :indeterminate="some_selected && !all_selected"
             @update:model-value="toggle_all">Select all</cdx-checkbox>
-        <cdx-button @click="unselect_smaller_edits">Unselect smaller edits</cdx-button>
+        <cdx-button @click="unselect_smaller_edits" :disabled="!some_selected">Unselect smaller edits</cdx-button>
         <span class="ainb-total-badge"><b>{{ total_selected }}</b> of {{ total_groups }} articles selected</span>
     </div>
 
