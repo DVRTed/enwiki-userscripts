@@ -49,6 +49,7 @@ $(async () => {
       CdxDialog,
       CdxCheckbox,
       CdxProgressBar,
+      CdxMenuButton,
     } = require("@wikimedia/codex");
 
     create_app({
@@ -59,6 +60,7 @@ $(async () => {
         CdxDialog,
         CdxCheckbox,
         CdxProgressBar,
+        CdxMenuButton,
       },
 
       data() {
@@ -82,6 +84,11 @@ $(async () => {
           target_page_title: "",
           target_page_url: "",
           viewing_diff_edit: null,
+          filter_menu_selected: null,
+          available_tags: [],
+          selected_tags_map: {},
+          tag_dialog_open: false,
+          tag_counts: {},
         };
       },
 
@@ -158,6 +165,22 @@ $(async () => {
             ) || null
           );
         },
+        filter_menu_items() {
+          return [
+            { value: "smaller", label: "Unselect smaller edits" },
+            { value: "tag", label: "Unselect edits by tag" },
+          ];
+        },
+        selected_tag_list() {
+          return this.available_tags.filter(
+            (tag) => this.selected_tags_map[tag],
+          );
+        },
+        tags_in_selection() {
+          return this.available_tags.filter(
+            (tag) => (this.tag_counts[tag] || 0) > 0,
+          );
+        },
       },
       methods: {
         handle_dialog_close() {
@@ -217,6 +240,49 @@ $(async () => {
             });
             this.update_group_selection(group);
           });
+        },
+        handle_filter_menu_select(value) {
+          this.filter_menu_selected = null;
+          if (value === "smaller") {
+            this.unselect_smaller_edits();
+          } else if (value === "tag") {
+            this.open_tag_dialog();
+          }
+        },
+        open_tag_dialog() {
+          this.selected_tags_map = Object.fromEntries(
+            this.available_tags.map((tag) => [tag, false]),
+          );
+
+          const counts = {};
+          this.article_groups.forEach((group) => {
+            group.edits.forEach((edit) => {
+              if (!edit.selected) return;
+              (edit.tags || []).forEach((tag) => {
+                counts[tag] = (counts[tag] || 0) + 1;
+              });
+            });
+          });
+          this.tag_counts = counts;
+
+          this.tag_dialog_open = true;
+        },
+        unselect_by_tag() {
+          const tags_to_unselect = new Set(this.selected_tag_list);
+
+          this.article_groups.forEach((group) => {
+            group.edits.forEach((edit) => {
+              if (
+                edit.selected &&
+                edit.tags?.some((tag) => tags_to_unselect.has(tag))
+              ) {
+                edit.selected = false;
+              }
+            });
+            this.update_group_selection(group);
+          });
+
+          this.tag_dialog_open = false;
         },
         async fetch_contributions() {
           this.loading = true;
@@ -306,6 +372,12 @@ $(async () => {
             });
 
             this.edit_count = valid_edits.length;
+
+            const tag_set = new Set();
+            valid_edits.forEach((edit) => {
+              (edit.tags || []).forEach((tag) => tag_set.add(tag));
+            });
+            this.available_tags = Array.from(tag_set).sort();
 
             this.article_groups = Object.values(groups);
 
@@ -646,7 +718,13 @@ $(async () => {
     <div class="ainb-step2-toolbar">
         <cdx-checkbox :model-value="all_selected" :indeterminate="some_selected && !all_selected"
             @update:model-value="toggle_all">Select all</cdx-checkbox>
-        <cdx-button @click="unselect_smaller_edits" :disabled="!some_selected">Unselect smaller edits</cdx-button>
+        <cdx-menu-button
+            v-model:selected="filter_menu_selected"
+            weight="normal"
+            :menu-items="filter_menu_items"
+            :disabled="!some_selected"
+            @update:selected="handle_filter_menu_select"
+        >Filter selected</cdx-menu-button>
         <span class="ainb-total-badge"><b>{{ total_selected }}</b> of {{ total_groups }} articles selected</span>
     </div>
 
@@ -756,6 +834,33 @@ $(async () => {
       </cdx-dialog>
     `;
 
+    const tag_dialog = `
+      <cdx-dialog v-model:open="tag_dialog_open"
+        title="Unselect edits by tag"
+        :use-close-button="true"
+        class="ainb-tag-dialog"
+      >
+        <p v-if="tags_in_selection.length === 0">No tags found on the selected edits.</p>
+        <div v-else>
+          <cdx-checkbox v-for="tag in tags_in_selection" :key="tag" v-model="selected_tags_map[tag]">
+            {{ tag }} ({{ tag_counts[tag] }} edit{{ tag_counts[tag] === 1 ? '' : 's' }})
+          </cdx-checkbox>
+        </div>
+        <template #footer>
+          <div class="ainb-dialog-footer">
+            <div></div>
+            <div>
+              <cdx-button @click="tag_dialog_open = false">Cancel</cdx-button>
+              <cdx-button action="progressive" weight="primary"
+                @click="unselect_by_tag" :disabled="selected_tag_list.length === 0">
+                Unselect
+              </cdx-button>
+            </div>
+          </div>
+        </template>
+      </cdx-dialog>
+    `;
+
     const step3 = `
     <div v-if="step === 3" class="ainb-step">
       <div v-if="creating" class="ainb-loading">
@@ -814,6 +919,7 @@ $(async () => {
   ${footer}
 </cdx-dialog>
 ${diff_dialog}
+${tag_dialog}
 </div>
   `;
   }
