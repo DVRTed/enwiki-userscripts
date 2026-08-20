@@ -224,10 +224,7 @@ $(async () => {
           });
         },
         unselect_smaller_edits() {
-          const input = prompt(
-            "Unselect edits smaller than (bytes):",
-            "35",
-          );
+          const input = prompt("Unselect edits smaller than (bytes):", "35");
           if (input === null) return;
           const threshold = parseInt(input, 10);
           if (isNaN(threshold)) return;
@@ -444,7 +441,7 @@ $(async () => {
             }))
             .filter((group) => group.edits.length > 0);
 
-          let wikitext = `Relevant report and discussion may be viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list|\n`;
+          let wikitext = `{{NOINDEX|visible=yes}}\nRelevant report and discussion may be viewable on the talk page.\n\n== Tracking list ==\n{{AIC article list|\n`;
 
           selected_groups.forEach((group) => {
             const links = group.edits
@@ -1018,39 +1015,47 @@ ${tag_dialog}
   }
 
   function init_progress_bar() {
-    const STATUS_KEYS = ["completed", "unnecessary", "ongoing", "todo", "unknown"];
+    const STATUS_KEYS = [
+      "completed",
+      "unnecessary",
+      "ongoing",
+      "todo",
+      "unknown",
+    ];
 
-    $('table').has('tr[class*="aic-row-"]').each(function () {
-      const $table = $(this);
-      const stats = Object.fromEntries(STATUS_KEYS.map((k) => [k, 0]));
+    $("table")
+      .has('tr[class*="aic-row-"]')
+      .each(function () {
+        const $table = $(this);
+        const stats = Object.fromEntries(STATUS_KEYS.map((k) => [k, 0]));
 
-      $table.find('tr[class*="aic-row-"]').each(function () {
-        const status = get_row_status($(this));
-        stats[status in stats ? status : "unknown"]++;
-      });
+        $table.find('tr[class*="aic-row-"]').each(function () {
+          const status = get_row_status($(this));
+          stats[status in stats ? status : "unknown"]++;
+        });
 
-      const total = Object.values(stats).reduce((a, b) => a + b, 0);
-      if (!total) return;
+        const total = Object.values(stats).reduce((a, b) => a + b, 0);
+        if (!total) return;
 
-      const resolved = stats.completed + stats.unnecessary;
-      const percent = Math.round((resolved / total) * 100);
-      const active = STATUS_KEYS.filter((key) => stats[key] > 0);
+        const resolved = stats.completed + stats.unnecessary;
+        const percent = Math.round((resolved / total) * 100);
+        const active = STATUS_KEYS.filter((key) => stats[key] > 0);
 
-      const segments = active
-        .map(
-          (key) =>
-            `<div class="ainb-seg ainb-seg-${key}" style="width:${(stats[key] / total) * 100}%" title="${stats[key]} ${key}"></div>`,
-        )
-        .join("");
+        const segments = active
+          .map(
+            (key) =>
+              `<div class="ainb-seg ainb-seg-${key}" style="width:${(stats[key] / total) * 100}%" title="${stats[key]} ${key}"></div>`,
+          )
+          .join("");
 
-      const legend = active
-        .map(
-          (key) =>
-            `<span><i class="ainb-dot ainb-seg-${key}"></i>${key} (${stats[key]})</span>`,
-        )
-        .join("");
+        const legend = active
+          .map(
+            (key) =>
+              `<span><i class="ainb-dot ainb-seg-${key}"></i>${key} (${stats[key]})</span>`,
+          )
+          .join("");
 
-      const $bar = $(`
+        const $bar = $(`
       <div class="ainb-progress-wrap">
         <div class="ainb-progress-top">
           <span class="ainb-progress-percent">${percent}%</span>
@@ -1065,8 +1070,8 @@ ${tag_dialog}
       </div>
     `);
 
-      $table.before($bar);
-    });
+        $table.before($bar);
+      });
   }
   const wgPageName = mw.config.get("wgPageName");
 
