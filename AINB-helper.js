@@ -81,6 +81,7 @@ $(async () => {
           selected_article_title: "",
           creating: false,
           create_error: "",
+          generated_wikitext: "",
           target_page_title: "",
           target_page_url: "",
           viewing_diff_edit: null,
@@ -434,6 +435,27 @@ $(async () => {
           }
         },
         async generate_report() {
+          const wikitext = this.build_wikitext();
+          this.generated_wikitext = wikitext;
+          this.creating = true;
+          this.create_error = "";
+          this.step = 3;
+
+          try {
+            await api.postWithEditToken({
+              action: "edit",
+              title: this.target_page_title,
+              text: wikitext,
+              summary: `Creating tracking subpage ${APP_AD}`,
+            });
+          } catch (error) {
+            this.create_error = "Error creating page: " + error.message;
+            console.error(error);
+          } finally {
+            this.creating = false;
+          }
+        },
+        build_wikitext() {
           const selected_groups = this.article_groups
             .map((group) => ({
               ...group,
@@ -458,22 +480,14 @@ $(async () => {
           });
 
           wikitext += `}}\n`;
-          this.creating = true;
-          this.create_error = "";
-          this.step = 3;
-
+          return wikitext;
+        },
+        async copy_wikitext() {
           try {
-            await api.postWithEditToken({
-              action: "edit",
-              title: this.target_page_title,
-              text: wikitext,
-              summary: `Creating tracking subpage ${APP_AD}`,
-            });
-          } catch (error) {
-            this.create_error = "Error creating page: " + error.message;
-            console.error(error);
-          } finally {
-            this.creating = false;
+            await navigator.clipboard.writeText(this.build_wikitext());
+            mw.notify('Wikitext copied to clipboard.', { type: 'success' });
+          } catch (err) {
+            mw.notify('Failed to copy to clipboard.', { type: 'error' });
           }
         },
         get_diff_url(revid) {
@@ -640,8 +654,7 @@ $(async () => {
               summary: `Updated row for [[${this.article}]] ${APP_AD}`,
             });
 
-            mw.notify("Saved successfully!", { type: "success" });
-            setTimeout(() => location.reload(), 1000);
+            location.reload();
             this.handle_dialog_close();
           } catch (e) {
             this.error = "Error saving changes: " + e.message;
@@ -888,6 +901,9 @@ $(async () => {
           <div class="ainb-subpage-info">Target: <strong>{{ target_page_title }}</strong></div>
           <div class="ainb-footer-buttons">
             <cdx-button @click="step = 1">Back</cdx-button>
+            <cdx-button @click="copy_wikitext"
+              :disabled="total_selected_diffs === 0">Copy wikitext
+            </cdx-button>
             <cdx-button action="progressive" 
               weight="primary" @click="generate_report"
               :disabled="total_selected_diffs === 0">Create Page
