@@ -21,16 +21,20 @@ $(async () => {
 
   let current_app = null;
 
+  function close_app() {
+    if (current_app) {
+      current_app.unmount();
+      current_app = null;
+    }
+    document.getElementById(APP_ID)?.remove();
+  }
+
   // reuseable function to create and mount the app
   // that handles dups
   function create_app(App) {
     const { createMwApp } = Vue;
 
-    if (current_app) {
-      current_app.unmount();
-    }
-    current_app = null;
-    document.getElementById(APP_ID)?.remove();
+    close_app();
 
     const mount_point = document.createElement("div");
     mount_point.id = APP_ID;
@@ -185,11 +189,7 @@ $(async () => {
       },
       methods: {
         handle_dialog_close() {
-          if (current_app) {
-            current_app.unmount();
-            current_app = null;
-            document.getElementById(APP_ID)?.remove();
-          }
+          close_app();
         },
 
         fire_hook() {
@@ -568,9 +568,6 @@ $(async () => {
       },
 
       computed: {
-        dialog_title() {
-          return `Editing row`;
-        },
         can_save() {
           return !this.saving && !this.loading && this.status;
         },
@@ -578,11 +575,7 @@ $(async () => {
 
       methods: {
         handle_dialog_close() {
-          if (current_app) {
-            current_app.unmount();
-            current_app = null;
-            document.getElementById(APP_ID)?.remove();
-          }
+          close_app();
         },
 
         map_params(value) {
@@ -955,7 +948,7 @@ ${tag_dialog}
     return `
 <div>
   <cdx-dialog class="ainb-edit-table" v-model:open="is_open" 
-    :title="dialog_title" :use-close-button="true"
+    title="Editing row" :use-close-button="true"
     @update:open="handle_dialog_close">
     
     <div class="ainb-edit-step">
