@@ -613,6 +613,10 @@
   text-align: right;
 }
 
+.ainb-hide-resolved .ainb-row-resolved {
+  display: none;
+}
+
 .ainb-seg-unknown {
   background: var(--background-color-disabled, #c8ccd1);
 }
