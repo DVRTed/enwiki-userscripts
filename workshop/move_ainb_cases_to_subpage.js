@@ -1,18 +1,17 @@
 //<nowiki>
 // adds "move to subpage" buttons to the sections on the WP:AI noticeboard
-// logs the entry to the table at [[Wikipedia:AI noticeboard/AINB/Cases]] after moving
 
 // it's based on [[User:DVRTed/move-talk-section]]
 
 (async () => {
   const current_page = mw.config.get("wgPageName")?.replace(/_/g, " ");
-  if (current_page !== "Wikipedia:AI noticeboard") return;
+  if (!current_page.startsWith("Wikipedia:AI noticeboard")) return;
 
   await mw.loader.using(["mediawiki.api", "mediawiki.util"]);
 
   const SCRIPT_TAG =
     "(using [[User:DVRTed/sandbox/move_AINB_cases_to_subpages.js|a script]])";
-  const CASES_TABLE_PAGE = "Wikipedia:AI noticeboard/AINB/Cases";
+  const BLANK_REPORT_PAGE = "Wikipedia:AI noticeboard/AINB/Blank report";
 
   const get_section_data = async (section_id, section_title) => {
     const api = new mw.Api();
@@ -30,52 +29,16 @@
     const heading_wikitext = heading_match
       ? heading_match[0].trim()
       : `== ${section_title} ==`;
-    const content_wikitext = heading_match
+    const raw_wikitext = heading_match
       ? wikitext.slice(heading_match[0].length).trim()
       : wikitext.trim();
 
+    const content_wikitext = raw_wikitext.replace(
+      /{{AIC status\|.+}}\n*/gim,
+      "",
+    );
+
     return { heading_wikitext, content_wikitext };
-  };
-
-  const add_to_tracking_table = async (target_page) => {
-    const api = new mw.Api();
-
-    const page_data = await api.get({
-      action: "parse",
-      page: CASES_TABLE_PAGE,
-      prop: "wikitext",
-    });
-
-    const wikitext = page_data?.parse?.wikitext?.["*"];
-    if (!wikitext) {
-      throw new Error(`Could not retrieve wikitext for "${CASES_TABLE_PAGE}".`);
-    }
-
-    const now = new Date();
-
-    // chop off everything after the minute, and replace the T w/ a space (of "T...Z")
-    const time = now.toISOString().slice(0, 16).replace("T", " ");
-    // and we get the "YYYY-MM-DD HH:MM" format
-
-    const case_name = target_page.replace(/^Wikipedia:AI noticeboard\//, "");
-    const new_row = `{{AINB-open |case=${case_name} |cleanup_status= |date=${time}}}\n`;
-
-    const last_brace_i = wikitext.lastIndexOf("}}");
-    if (last_brace_i === -1) {
-      throw new Error(
-        `Could not find a closing "|}" on "${CASES_TABLE_PAGE}".`,
-      );
-    }
-
-    const updated_wikitext =
-      wikitext.slice(0, last_brace_i) + new_row + wikitext.slice(last_brace_i);
-
-    await api.postWithEditToken({
-      action: "edit",
-      title: CASES_TABLE_PAGE,
-      text: updated_wikitext,
-      summary: `Added [[${target_page}]] to tracking table ${SCRIPT_TAG}`,
-    });
   };
 
   const handle_move = async ($link, section_title, section_id) => {
@@ -104,10 +67,34 @@
       const { heading_wikitext, content_wikitext } = section_data;
       const api = new mw.Api();
 
+      // preload the blank report template
+      const preload_data = await api.get({
+        action: "parse",
+        page: BLANK_REPORT_PAGE,
+        prop: "wikitext",
+      });
+      const preload_text = preload_data?.parse?.wikitext?.["*"];
+      if (!preload_text) {
+        throw new Error("Could not retrieve the preload");
+      }
+
+      const links = `{{Userlinks|${username}}}\n\n`;
+      const page_text = preload_text
+        .replace("$1", () => "analysis")
+        .replace("$2", () => "review")
+        .replace("$3", () => "undetermined")
+        .replace("$4", () => username)
+        .replace("$6", () => "user")
+        .replace("<noinclude/>", "")
+        .replace(/<noinclude>.*<\/noinclude>/, "")
+
+        .replace("$5", () => links + content_wikitext);
+
       await api.postWithEditToken({
         action: "edit",
         title: target_page,
-        prependtext: `{{NOINDEX|visible=yes}}\n\n==Discussion==\n{{userlinks|${target_page}}}\n\n${content_wikitext}\n\n==Tracking table==\n`,
+        text: page_text,
+        createonly: true,
         summary: `Moved discussion from [[${current_page}]] ${SCRIPT_TAG}`,
       });
 
@@ -115,11 +102,9 @@
         action: "edit",
         title: current_page,
         section: section_id,
-        text: `${heading_wikitext}\n{{mdt|${target_page}}}`,
+        text: `${heading_wikitext}\n{{Moved discussion to|${target_page}}}`,
         summary: `Moved discussion to [[${target_page}]] ${SCRIPT_TAG}`,
       });
-
-      await add_to_tracking_table(target_page);
 
       mw.notify(
         `Successfully moved section to "${target_page}". Reloading...`,
@@ -133,7 +118,7 @@
       }, 1500);
     } catch (error) {
       console.error("Error moving section:", error);
-      mw.notify(`Failed to move section: ${error.message || "Unknown error"}`, {
+      mw.notify(`Failed to move section: ${error.message || error}`, {
         type: "error",
       });
       $link.text(" [move to subpage] ").css("pointer-events", "auto");
