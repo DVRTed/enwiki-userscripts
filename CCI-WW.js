@@ -3,14 +3,13 @@
 
 // reuses "check affected %" feature from [[en:User:DVRTed/AINB-helper]]
 // <nowiki>
-console.clear();
 (() => {
-  const namespace = mw.config.get("wgNamespaceNumber");
-  const username = mw.config.get("wgUserName");
   const title = mw.config.get("wgPageName");
 
   const WIKIWHO_API =
     "https://wikiwho.wmcloud.org/en/api/v1.0.0-beta/latest_rev_content/";
+
+  let checking = false;
 
   if (
     !title.startsWith("User:GreenLipstickLesbian/CCI_dashboard") ||
@@ -35,48 +34,39 @@ console.clear();
     if (!match) return;
 
     const username = decodeURIComponent(match[1].replace(/_/g, " "));
-    console.log(username);
 
     const lis = section.find("ul li");
-
     lis.each(function () {
       const li = $(this);
 
       // first link is a link to the article
-      const article = li.find("a").first().text();
+      const $a = li.find("a").first();
+      // skip red links
+      if ($a.hasClass("new")) return;
+      const article = $a.text();
 
-      console.log(article);
+      check_affected(li, username, article);
     });
   });
 
   // reused functions from [[user:DVRTed/AINB-helper.js]]
-  function check_affected() {
-    const username = get_case_username(wgPageName);
-    let checking = false;
+  function check_affected(li, username, article) {
+    const $link = $("<a>")
+      .attr("href", "#")
+      .text("check affected % (beta)")
+      .on("click", async function (e) {
+        e.preventDefault();
+        if (checking) return;
+        checking = true;
 
-    $('tr[class*="aic-row-"]').each(function () {
-      const $row = $(this);
-      const $a = $row.find("a").first();
-      if ($a.hasClass("new")) return;
-      const article = $a.text();
-      const $notes = $row.find("td").last();
+        const $span = $("<span>").text("checking...");
+        $link.replaceWith($span);
 
-      const $link = $("<a>")
-        .addClass("ainb-check-pct")
-        .attr("href", "#")
-        .text("check affected % (beta)")
-        .on("click", async function (e) {
-          e.preventDefault();
-          if (checking) return;
-          checking = true;
-          $("a.ainb-check-pct").addClass("ainb-disabled");
-
-          const $span = $("<span>")
-            .addClass("ainb-check-pct")
-            .text("checking...");
-          $link.replaceWith($span);
-
-          try {
+        try {
+          let userid;
+          if (mw.util.isIPAddress(username, true)) {
+            userid = `0|${username}`;
+          } else {
             const uq = new URLSearchParams({
               action: "query",
               list: "users",
@@ -85,53 +75,53 @@ console.clear();
               origin: "*",
             });
             const udata = await (await fetch(`/w/api.php?${uq}`)).json();
-            const userid = String(udata.query.users[0]?.userid || "");
+            userid = String(udata.query.users[0]?.userid || "");
             if (!userid) {
               $span.text(`user "${username}" not found`);
               return;
             }
-
-            const wq = new URLSearchParams({
-              o_rev_id: false,
-              editor: true,
-              token_id: false,
-              out: false,
-              in: false,
-            });
-            const wdata = await (
-              await fetch(`${WIKIWHO_API}${encodeURIComponent(article)}/?${wq}`)
-            ).json();
-            if (!wdata.success) {
-              $span.text("WikiWho API error");
-              return;
-            }
-
-            const rev_obj = wdata.revisions[0];
-            const tokens = rev_obj[Object.keys(rev_obj)[0]].tokens;
-            const rel_user_tokens = tokens.filter(
-              (t) => t.editor === userid,
-            ).length;
-
-            const pct = tokens.length
-              ? ((rel_user_tokens / tokens.length) * 100).toFixed(1)
-              : "0";
-            $span
-              .html(
-                `<b>${pct}%</b> (${rel_user_tokens}/${tokens.length} tokens) of the current revision's content was authored by <b class="ww-ainb-uname"></b>` +
-                  ` (using WikiWho API)`,
-              )
-              .find(".ww-ainb-uname")
-              .text(username); // to prevent (impossible) xss through username
-          } catch (err) {
-            $span.text("lookup failed");
-          } finally {
-            checking = false;
-            $("a.ainb-check-pct").removeClass("ainb-disabled");
           }
-        });
 
-      $notes.append($("<div>").addClass("ainb-check-pct-wrap").append($link));
-    });
+          const wq = new URLSearchParams({
+            o_rev_id: false,
+            editor: true,
+            token_id: false,
+            out: false,
+            in: false,
+          });
+          const wdata = await (
+            await fetch(`${WIKIWHO_API}${encodeURIComponent(article)}/?${wq}`)
+          ).json();
+          if (!wdata.success) {
+            $span.text("WikiWho API error");
+            return;
+          }
+
+          const rev_obj = wdata.revisions[0];
+          const tokens = rev_obj[Object.keys(rev_obj)[0]].tokens;
+          const rel_user_tokens = tokens.filter(
+            (t) => t.editor === userid,
+          ).length;
+
+          const pct = tokens.length
+            ? ((rel_user_tokens / tokens.length) * 100).toFixed(1)
+            : "0";
+          $span
+            .html(
+              `<b>${pct}%</b> (${rel_user_tokens}/${tokens.length} tokens) of the current revision's content was authored by <b class="ww-uname"></b>` +
+                ` (using WikiWho API)`,
+            )
+            .find(".ww-uname")
+            .text(username); // to prevent (impossible) xss through username
+        } catch (err) {
+          $span.text("lookup failed");
+        } finally {
+          checking = false;
+        }
+      });
+    const $wrap = $("<span>").append("· ", $link);
+
+    li.append(" ", $wrap);
   }
 })();
 
