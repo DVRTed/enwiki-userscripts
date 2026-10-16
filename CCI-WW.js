@@ -4,11 +4,10 @@
 // reuses "check affected %" feature from [[en:User:DVRTed/AINB-helper]]
 // <nowiki>
 (() => {
-  const title = mw.config.get("wgPageName");
-
   const WIKIWHO_API =
     "https://wikiwho.wmcloud.org/en/api/v1.0.0-beta/latest_rev_content/";
 
+  const title = mw.config.get("wgPageName");
   let checking = false;
 
   if (
